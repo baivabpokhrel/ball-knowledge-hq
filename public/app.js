@@ -16,8 +16,8 @@ function row(m, i, weekly) {
       <div class="rank">${i + 1}</div>
 
       <div class="person">
-        <b>${m.manager}</b>
-        <small>${m.team}</small>
+        <b>${m.team}</b>
+        <small>${m.manager}</small>
       </div>
 
       <div class="score">
