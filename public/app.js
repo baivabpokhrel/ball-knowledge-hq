@@ -1,273 +1,678 @@
-const $ = (id) => document.getElementById(id);
+const $ = (id) =>
+  document.getElementById(id);
 
-const DEFAULT_LEAGUE_ID = '92378';
-let leagueId = DEFAULT_LEAGUE_ID;
+const LEAGUE_ID =
+  '92378';
 
-function row(m, i, weekly) {
-  const move =
-    m.movement > 0
-      ? `<span class="up">▲ ${m.movement}</span>`
-      : m.movement < 0
-        ? `<span class="down">▼ ${Math.abs(m.movement)}</span>`
+let dashboardData = null;
+let paymentData = null;
+
+
+/*
+  -------------------------
+  HELPERS
+  -------------------------
+*/
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+
+function standingsRow(
+  manager,
+  index,
+  weekly
+) {
+  const movement =
+    manager.movement > 0
+      ? `<span class="up">▲ ${manager.movement}</span>`
+      : manager.movement < 0
+        ? `<span class="down">▼ ${Math.abs(manager.movement)}</span>`
         : '—';
 
   return `
-    <div class="row">
-      <div class="rank">${i + 1}</div>
+    <div class="standing-row">
 
-      <div class="person">
-        <b>${m.team}</b>
-        <small>${m.manager}</small>
+      <div class="position">
+        ${index + 1}
       </div>
 
-      <div class="score">
-        <b>${weekly ? m.gameweekPoints : m.seasonPoints}</b>
-        <small>${weekly ? 'GW pts' : move}</small>
+      <div class="manager-info">
+
+        <strong>
+          ${escapeHtml(manager.team)}
+        </strong>
+
+        <small>
+          ${escapeHtml(manager.manager)}
+        </small>
+
       </div>
+
+      <div class="points">
+
+        <strong>
+          ${
+            weekly
+              ? manager.gameweekPoints
+              : manager.seasonPoints
+          }
+        </strong>
+
+        <small>
+          ${
+            weekly
+              ? 'GW PTS'
+              : movement
+          }
+        </small>
+
+      </div>
+
     </div>
   `;
 }
 
-function render(d) {
-  if ($('setup')) $('setup').hidden = true;
-  if ($('dashboard')) $('dashboard').hidden = false;
 
-  if ($('league')) {
-    $('league').textContent =
-      d.league?.name || 'Ball Knowledge Only';
+/*
+  -------------------------
+  DASHBOARD
+  -------------------------
+*/
+
+function renderDashboard(data) {
+  dashboardData = data;
+
+  $('league').textContent =
+    data.league?.name ||
+    'Ball Knowledge Only';
+
+  const managers =
+    Array.isArray(data.managers)
+      ? data.managers
+      : [];
+
+  $('connectionStatus')
+    .textContent =
+      `● FPL CONNECTED • ${managers.length} MANAGERS`;
+
+  $('connectionStatus')
+    .classList.add('connected');
+
+  $('gw').textContent =
+    data.gameweek?.id ??
+    '—';
+
+  $('paymentGw').textContent =
+    data.gameweek?.id ??
+    '—';
+
+  $('statusCode').textContent =
+    data.gameweek?.status
+      ?.code ||
+    '—';
+
+  $('statusText').textContent =
+    data.gameweek?.status
+      ?.label ||
+    '';
+
+  const weekly =
+    Array.isArray(data.weekly)
+      ? data.weekly
+      : [];
+
+  const overall =
+    Array.isArray(data.overall)
+      ? data.overall
+      : [];
+
+  $('weeklyList').innerHTML =
+    weekly.length
+      ? weekly
+          .map(
+            (m, i) =>
+              standingsRow(
+                m,
+                i,
+                true
+              )
+          )
+          .join('')
+      : `
+        <div class="empty">
+          Gameweek standings will appear once scoring begins.
+        </div>
+      `;
+
+  $('overallList').innerHTML =
+    overall.length
+      ? overall
+          .map(
+            (m, i) =>
+              standingsRow(
+                m,
+                i,
+                false
+              )
+          )
+          .join('')
+      : `
+        <div class="empty">
+          Overall standings are not available yet.
+        </div>
+      `;
+
+  renderAwards(data);
+
+  renderPayments();
+}
+
+
+function renderAwards(data) {
+  const status =
+    data.gameweek?.status;
+
+  const awards =
+    data.awards || {};
+
+  if (
+    status?.code ===
+    'PRE-SEASON'
+  ) {
+    $('awardTitle')
+      .textContent =
+        'Waiting for Gameweek';
+
+    $('awardText')
+      .textContent =
+        'No leader yet';
+
+    $('awardNote')
+      .textContent =
+        'Standings begin after the Gameweek deadline.';
+
+    return;
   }
 
-  if ($('updated')) {
-    $('updated').textContent =
-      `Updated ${new Date(d.updatedAt).toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit'
-      })}`;
-  }
-
-  if ($('gw')) {
-    $('gw').textContent = d.gameweek?.id ?? '—';
-  }
-
-  const weekly = Array.isArray(d.weekly)
-    ? d.weekly
-    : [];
-
-  const overall = Array.isArray(d.overall)
-    ? d.overall
-    : [];
-
-  const leader = weekly[0];
-
-  if ($('weeklyLeader')) {
-    $('weeklyLeader').textContent =
-      leader?.manager || '—';
-  }
-
-  if ($('weeklyPoints')) {
-    $('weeklyPoints').textContent =
-      leader?.gameweekPoints ?? '—';
-  }
-
-  if ($('statusCode')) {
-    $('statusCode').textContent =
-      d.gameweek?.status?.code || '—';
-  }
-
-  if ($('statusText')) {
-    $('statusText').textContent =
-      d.gameweek?.status?.label || '';
-  }
-
-  if ($('weeklyList')) {
-    $('weeklyList').innerHTML =
-      weekly
-        .map((m, i) => row(m, i, true))
-        .join('');
-  }
-
-  if ($('overallList')) {
-    $('overallList').innerHTML =
-      overall
-        .map((m, i) => row(m, i, false))
-        .join('');
-  }
-
-  const awards = d.awards || {};
-
-  const isFinal =
-    Boolean(d.gameweek?.status?.final);
-
-  if (isFinal) {
+  if (status?.final) {
     const winners =
-      Array.isArray(awards.winners)
+      Array.isArray(
+        awards.winners
+      )
         ? awards.winners
         : [];
 
-    if ($('awardTitle')) {
-      $('awardTitle').textContent =
+    $('awardTitle')
+      .textContent =
         winners.length > 1
           ? 'Gameweek Winners'
           : 'Manager of the Week';
-    }
 
-    if ($('awardText')) {
-      $('awardText').textContent =
-        winners.length > 0
+    $('awardText')
+      .textContent =
+        winners.length
           ? winners
               .map(
                 (x) =>
-                  `${x.manager} — ${x.gameweekPoints} pts`
+                  `${x.team} — ${x.gameweekPoints}`
               )
               .join(', ')
           : '—';
-    }
 
-    if ($('awardNote')) {
-      $('awardNote').textContent =
-        'Official result after FPL bonuses and corrections.';
-    }
-  } else {
-    const provisional =
-      Array.isArray(awards.provisionalLeader)
-        ? awards.provisionalLeader
-        : leader
-          ? [leader]
-          : [];
+    $('awardNote')
+      .textContent =
+        'Official after FPL bonuses and corrections.';
 
-    if ($('awardTitle')) {
-      $('awardTitle').textContent =
-        'Provisional Leader';
-    }
-
-    if ($('awardText')) {
-      $('awardText').textContent =
-        provisional.length > 0
-          ? provisional
-              .map(
-                (x) =>
-                  `${x.manager} — ${x.gameweekPoints} pts`
-              )
-              .join(', ')
-          : '—';
-    }
-
-    if ($('awardNote')) {
-      $('awardNote').textContent =
-        'Not official yet. Waiting for FPL bonus points and final checks.';
-    }
+    return;
   }
+
+  const provisional =
+    Array.isArray(
+      awards.provisionalLeader
+    )
+      ? awards.provisionalLeader
+      : [];
+
+  $('awardTitle')
+    .textContent =
+      'Provisional Leader';
+
+  $('awardText')
+    .textContent =
+      provisional.length
+        ? provisional
+            .map(
+              (x) =>
+                `${x.team} — ${x.gameweekPoints}`
+            )
+            .join(', ')
+        : '—';
+
+  $('awardNote')
+    .textContent =
+      'Not official. Points can still change.';
 }
+
+
+/*
+  -------------------------
+  PAYMENTS
+  -------------------------
+*/
+
+function isPaid(entryId) {
+  if (
+    !paymentData ||
+    !Array.isArray(
+      paymentData.payments
+    )
+  ) {
+    return false;
+  }
+
+  const payment =
+    paymentData.payments.find(
+      (item) =>
+        Number(
+          item.entry_id
+        ) ===
+        Number(entryId)
+    );
+
+  return (
+    payment?.paid === true
+  );
+}
+
+
+function renderPayments() {
+  if (
+    !dashboardData ||
+    !paymentData
+  ) {
+    return;
+  }
+
+  const managers =
+    Array.isArray(
+      dashboardData.managers
+    )
+      ? dashboardData.managers
+      : [];
+
+  $('fee').textContent =
+    paymentData.fee ?? '—';
+
+  $('zelleValue')
+    .textContent =
+      paymentData.zelle ||
+      'Not configured';
+
+  const paidManagers =
+    managers.filter(
+      (manager) =>
+        isPaid(
+          manager.entryId
+        )
+    );
+
+  const paidCount =
+    paidManagers.length;
+
+  const total =
+    managers.length;
+
+  const remaining =
+    Math.max(
+      0,
+      total - paidCount
+    );
+
+  $('paidCount')
+    .textContent =
+      `${paidCount} / ${total}`;
+
+  $('remainingCount')
+    .textContent =
+      remaining === 0 &&
+      total > 0
+        ? '✓ ALL PAID'
+        : `${remaining} REMAINING`;
+
+  const percent =
+    total > 0
+      ? Math.round(
+          (paidCount /
+            total) *
+            100
+        )
+      : 0;
+
+  $('paymentProgress')
+    .style.width =
+      `${percent}%`;
+
+  /*
+    Show unpaid first.
+    Within each status sort by team.
+  */
+
+  const sorted =
+    [...managers].sort(
+      (a, b) => {
+        const aPaid =
+          isPaid(a.entryId);
+
+        const bPaid =
+          isPaid(b.entryId);
+
+        if (
+          aPaid !== bPaid
+        ) {
+          return aPaid
+            ? 1
+            : -1;
+        }
+
+        return String(
+          a.team
+        ).localeCompare(
+          String(b.team)
+        );
+      }
+    );
+
+  $('paymentList').innerHTML =
+    sorted.length
+      ? sorted
+          .map(
+            (manager) => {
+              const paid =
+                isPaid(
+                  manager.entryId
+                );
+
+              return `
+                <div class="payment-row ${paid ? 'is-paid' : 'is-unpaid'}">
+
+                  <div class="payment-status">
+                    ${
+                      paid
+                        ? '✓'
+                        : '!'
+                    }
+                  </div>
+
+                  <div class="manager-info">
+
+                    <strong>
+                      ${escapeHtml(manager.team)}
+                    </strong>
+
+                    <small>
+                      ${escapeHtml(manager.manager)}
+                    </small>
+
+                  </div>
+
+                  <div class="payment-label">
+                    ${
+                      paid
+                        ? 'PAID'
+                        : 'NOT PAID'
+                    }
+                  </div>
+
+                </div>
+              `;
+            }
+          )
+          .join('')
+      : `
+        <div class="empty">
+          No FPL managers found.
+        </div>
+      `;
+}
+
+
+/*
+  -------------------------
+  FETCH DATA
+  -------------------------
+*/
 
 async function loadDashboard() {
-  if ($('updated')) {
-    $('updated').textContent = 'Updating…';
+  const response =
+    await fetch(
+      `/api/dashboard?leagueId=${LEAGUE_ID}`,
+      {
+        cache:
+          'no-store'
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      'Unable to load FPL league'
+    );
   }
+
+  renderDashboard(data);
+
+  return data;
+}
+
+
+async function loadPayments(
+  gameweek
+) {
+  const response =
+    await fetch(
+      `/api/payments?gw=${gameweek}`,
+      {
+        cache:
+          'no-store'
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      'Unable to load payments'
+    );
+  }
+
+  paymentData = data;
+
+  renderPayments();
+}
+
+
+async function loadEverything() {
+  $('updated')
+    .textContent =
+      'Updating…';
 
   try {
-    const response = await fetch(
-      `/api/dashboard?leagueId=${encodeURIComponent(
-        leagueId
-      )}`,
-      {
-        cache: 'no-store'
-      }
+    const dashboard =
+      await loadDashboard();
+
+    const gameweek =
+      dashboard.gameweek?.id ||
+      1;
+
+    await loadPayments(
+      gameweek
     );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-          `Unable to load FPL data (${response.status})`
-      );
-    }
-
-    render(data);
+    $('updated')
+      .textContent =
+        `Updated ${new Date().toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        })}`;
   } catch (error) {
-    console.error(
-      'FPL dashboard error:',
-      error
-    );
+    console.error(error);
 
-    if ($('updated')) {
-      $('updated').textContent =
-        error.message ||
-        'Unable to load FPL data';
-    }
+    $('updated')
+      .textContent =
+        error.message;
 
-    if ($('setup')) {
-      $('setup').hidden = false;
-    }
+    $('connectionStatus')
+      .textContent =
+        '● CONNECTION ERROR';
+
+    $('connectionStatus')
+      .classList.remove(
+        'connected'
+      );
+
+    $('connectionStatus')
+      .classList.add(
+        'error'
+      );
   }
 }
 
+
 /*
-  Optional manual league connection.
-  This still works if your HTML
-  contains #connect and #leagueId.
+  -------------------------
+  ZELLE COPY
+  -------------------------
 */
-if ($('connect')) {
-  $('connect').addEventListener(
+
+$('copyZelle')
+  .addEventListener(
     'click',
-    () => {
-      const input = $('leagueId');
+    async () => {
+      const value =
+        $('zelleValue')
+          .textContent
+          .trim();
 
       if (
-        input &&
-        input.value.trim()
+        !value ||
+        value ===
+          'Not configured'
       ) {
-        leagueId =
-          input.value.trim();
+        return;
       }
 
-      loadDashboard();
+      const button =
+        $('copyZelle');
+
+      try {
+        await navigator
+          .clipboard
+          .writeText(
+            value
+          );
+
+        button.textContent =
+          'COPIED ✓';
+
+        setTimeout(
+          () => {
+            button.textContent =
+              'COPY';
+          },
+          1600
+        );
+      } catch {
+        window.prompt(
+          'Copy Zelle information:',
+          value
+        );
+      }
     }
   );
-}
+
 
 /*
-  Refresh always fetches
-  real FPL data.
+  -------------------------
+  NAVIGATION
+  -------------------------
 */
-if ($('refresh')) {
-  $('refresh').addEventListener(
-    'click',
-    loadDashboard
-  );
-}
 
-/*
-  Tab navigation.
-*/
 document
-  .querySelectorAll('[data-tab]')
-  .forEach((button) => {
-    button.addEventListener(
-      'click',
-      () => {
-        document
-          .querySelectorAll('[data-tab]')
-          .forEach((item) => {
-            item.classList.toggle(
-              'active',
-              item === button
-            );
-          });
+  .querySelectorAll(
+    '[data-tab]'
+  )
+  .forEach(
+    (button) => {
+      button.addEventListener(
+        'click',
+        () => {
+          const target =
+            button.dataset
+              .tab;
 
-        document
-          .querySelectorAll('.panel')
-          .forEach((panel) => {
-            panel.hidden =
-              panel.id !==
-              button.dataset.tab;
+          document
+            .querySelectorAll(
+              '[data-tab]'
+            )
+            .forEach(
+              (item) =>
+                item.classList
+                  .toggle(
+                    'active',
+                    item ===
+                      button
+                  )
+            );
+
+          document
+            .querySelectorAll(
+              '.panel'
+            )
+            .forEach(
+              (panel) => {
+                panel.hidden =
+                  panel.id !==
+                  target;
+              }
+            );
+
+          window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
           });
-      }
-    );
-  });
+        }
+      );
+    }
+  );
+
 
 /*
-  Automatically load
-  real league 92378.
+  -------------------------
+  REFRESH
+  -------------------------
 */
-loadDashboard();
+
+$('refresh')
+  .addEventListener(
+    'click',
+    loadEverything
+  );
+
+
+/*
+  Initial load
+*/
+
+loadEverything();
