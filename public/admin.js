@@ -1,4 +1,4 @@
-const $ = (id) =>
+const $ = id =>
   document.getElementById(id);
 
 const LEAGUE_ID =
@@ -6,15 +6,21 @@ const LEAGUE_ID =
 
 let currentGw = 1;
 
+let selectedGw = 1;
+
 let managers = [];
 
 let allPayments = [];
 
+let originalDraft = null;
+
+let draft = null;
+
 
 /*
-  =========================================
+  ====================================
   HELPERS
-  =========================================
+  ====================================
 */
 
 function escapeHtml(value) {
@@ -31,216 +37,261 @@ function showMessage(
   message,
   type = ''
 ) {
-  const element =
+  const el =
     $('adminMessage');
 
-  element.textContent =
+  el.textContent =
     message;
 
-  element.className =
+  el.className =
     'admin-message';
 
   if (type) {
-    element.classList.add(
-      type
-    );
-  }
-
-  if (message) {
-    setTimeout(() => {
-      if (
-        element.textContent ===
-        message
-      ) {
-        element.textContent = '';
-
-        element.className =
-          'admin-message';
-      }
-    }, 2500);
+    el.classList.add(type);
   }
 }
 
 
-/*
-  =========================================
-  PAYMENT LOOKUPS
-  =========================================
-*/
-
-function getPayment(
+function getStoredPayment(
   gw,
   entryId
 ) {
   return (
     allPayments.find(
-      row =>
-        Number(row.gameweek) ===
+      item =>
+        Number(item.gameweek) ===
           Number(gw) &&
-        Number(row.entry_id) ===
+        Number(item.entry_id) ===
           Number(entryId)
     ) || null
   );
 }
 
 
-function isPaid(
-  gw,
-  entryId
-) {
-  return (
-    getPayment(
-      gw,
-      entryId
-    )?.paid === true
-  );
+function paidCountForGw(gw) {
+  return managers.filter(
+    manager =>
+      getStoredPayment(
+        gw,
+        manager.entryId
+      )?.paid === true
+  ).length;
 }
 
 
-function isWinner(
-  gw,
-  entryId
-) {
-  return (
-    getPayment(
-      gw,
-      entryId
-    )?.winner === true
-  );
-}
+function winnerForGw(gw) {
+  const row =
+    allPayments.find(
+      item =>
+        Number(item.gameweek) ===
+          Number(gw) &&
+        item.winner === true
+    );
 
+  if (!row) {
+    return null;
+  }
 
-function getWinner(gw) {
   return (
     managers.find(
       manager =>
-        isWinner(
-          gw,
-          manager.entryId
-        )
+        Number(manager.entryId) ===
+        Number(row.entry_id)
     ) || null
   );
 }
 
 
-function paidCount(gw) {
-  return managers.filter(
-    manager =>
-      isPaid(
-        gw,
+/*
+  ====================================
+  CREATE LOCAL DRAFT
+  ====================================
+*/
+
+function buildDraft(gw) {
+  const paymentMap = {};
+
+  managers.forEach(
+    manager => {
+      const stored =
+        getStoredPayment(
+          gw,
+          manager.entryId
+        );
+
+      paymentMap[
         manager.entryId
-      )
-  ).length;
+      ] = {
+        paid:
+          stored?.paid === true,
+
+        paidAt:
+          stored?.paid_at || null
+      };
+    }
+  );
+
+  const winner =
+    winnerForGw(gw);
+
+  return {
+    gameweek: gw,
+
+    winnerEntryId:
+      winner
+        ? Number(
+            winner.entryId
+          )
+        : null,
+
+    payments:
+      paymentMap
+  };
 }
 
 
-function isGwComplete(gw) {
-  /*
-    A Gameweek is considered complete
-    only when every current league
-    manager is marked paid.
-  */
-
-  return (
-    managers.length > 0 &&
-    paidCount(gw) ===
-      managers.length
+function cloneDraft(value) {
+  return JSON.parse(
+    JSON.stringify(value)
   );
 }
 
 
 /*
-  =========================================
-  GAMEWEEK LISTS
-  =========================================
+  ====================================
+  GW SELECT
+  ====================================
 */
 
-function outstandingGameweeks() {
-  const result = [];
+function buildGameweekSelect() {
+  const select =
+    $('gameweekSelect');
+
+  select.innerHTML = '';
 
   for (
-    let gw = 1;
-    gw <= currentGw;
-    gw++
+    let gw = currentGw;
+    gw >= 1;
+    gw--
   ) {
-    if (
-      !isGwComplete(gw)
-    ) {
-      result.push(gw);
-    }
+    const option =
+      document.createElement(
+        'option'
+      );
+
+    option.value = gw;
+
+    option.textContent =
+      gw === currentGw
+        ? `GW ${gw} — Current`
+        : `GW ${gw}`;
+
+    select.appendChild(
+      option
+    );
   }
 
-  /*
-    Most recent first.
-  */
-
-  return result.reverse();
-}
-
-
-function completedGameweeks() {
-  const result = [];
-
-  for (
-    let gw = 1;
-    gw <= currentGw;
-    gw++
-  ) {
-    if (
-      isGwComplete(gw)
-    ) {
-      result.push(gw);
-    }
-  }
-
-  return result.reverse();
+  select.value =
+    String(selectedGw);
 }
 
 
 /*
-  =========================================
-  RENDER ONE GW
-  =========================================
+  ====================================
+  WINNER SELECT
+  ====================================
 */
 
-function renderGameweekCard(
-  gw,
-  open = false
-) {
-  const paid =
-    paidCount(gw);
+function buildWinnerSelect() {
+  const select =
+    $('winnerSelect');
 
-  const total =
-    managers.length;
+  select.innerHTML = `
+    <option value="">
+      No winner selected
+    </option>
+  `;
 
-  const remaining =
-    Math.max(
-      0,
-      total - paid
+  managers
+    .slice()
+    .sort(
+      (a, b) =>
+        String(a.team)
+          .localeCompare(
+            String(b.team)
+          )
+    )
+    .forEach(
+      manager => {
+        const option =
+          document.createElement(
+            'option'
+          );
+
+        option.value =
+          manager.entryId;
+
+        option.textContent =
+          `${manager.team} — ${manager.manager}`;
+
+        select.appendChild(
+          option
+        );
+      }
     );
 
-  const winner =
-    getWinner(gw);
+  select.value =
+    draft?.winnerEntryId
+      ? String(
+          draft.winnerEntryId
+        )
+      : '';
+}
 
-  /*
-    Unpaid managers first.
-  */
 
-  const sortedManagers =
+/*
+  ====================================
+  RENDER EDITOR
+  ====================================
+*/
+
+function renderEditor() {
+  if (!draft) {
+    return;
+  }
+
+  $('editingGw')
+    .textContent =
+      selectedGw;
+
+  buildWinnerSelect();
+
+  const paidCount =
+    managers.filter(
+      manager =>
+        draft.payments[
+          manager.entryId
+        ]?.paid === true
+    ).length;
+
+  $('draftPaidCount')
+    .textContent =
+      `${paidCount}/${managers.length}`;
+
+
+  const sorted =
     [...managers].sort(
       (a, b) => {
 
         const aPaid =
-          isPaid(
-            gw,
+          draft.payments[
             a.entryId
-          );
+          ]?.paid === true;
 
         const bPaid =
-          isPaid(
-            gw,
+          draft.payments[
             b.entryId
-          );
+          ]?.paid === true;
 
         if (
           aPaid !== bPaid
@@ -250,38 +301,52 @@ function renderGameweekCard(
             : -1;
         }
 
-        return String(
-          a.team
-        ).localeCompare(
-          String(
-            b.team
-          )
-        );
+        return String(a.team)
+          .localeCompare(
+            String(b.team)
+          );
       }
     );
 
 
-  const managerHtml =
-    sortedManagers
-      .map(
+  $('adminManagerList')
+    .innerHTML =
+      sorted.map(
         manager => {
 
           const paid =
-            isPaid(
-              gw,
+            draft.payments[
               manager.entryId
-            );
+            ]?.paid === true;
 
           const winner =
-            isWinner(
-              gw,
+            Number(
+              draft.winnerEntryId
+            ) ===
+            Number(
               manager.entryId
             );
 
           return `
-            <div class="admin-manager">
+            <label
+              class="
+                admin-manager-row
+                ${paid ? 'paid-row' : ''}
+                ${winner ? 'winner-row' : ''}
+              "
+            >
 
-              <div class="manager-title">
+              <input
+                type="checkbox"
+
+                class="draft-paid"
+
+                data-entry="${manager.entryId}"
+
+                ${paid ? 'checked' : ''}
+              >
+
+              <div class="manager-info">
 
                 <strong>
                   ${escapeHtml(manager.team)}
@@ -293,461 +358,53 @@ function renderGameweekCard(
 
               </div>
 
+              <div class="admin-row-state">
 
-              <div class="admin-options">
-
-                <label
-                  class="
-                    admin-option
-                    ${paid ? 'paid' : ''}
-                  "
-                >
-
-                  <input
-                    type="checkbox"
-
-                    class="payment-checkbox"
-
-                    data-gw="${gw}"
-
-                    data-entry="${manager.entryId}"
-
-                    ${paid ? 'checked' : ''}
-                  >
-
-                  Paid
-
-                </label>
-
-
-                <label
-                  class="
-                    admin-option
-                    ${winner ? 'winner' : ''}
-                  "
-                >
-
-                  <input
-                    type="radio"
-
-                    name="winner-gw-${gw}"
-
-                    class="winner-radio"
-
-                    data-gw="${gw}"
-
-                    data-entry="${manager.entryId}"
-
-                    ${winner ? 'checked' : ''}
-                  >
-
-                  Winner 🏆
-
-                </label>
+                ${
+                  winner
+                    ? `<span class="winner-chip">🏆 WINNER</span>`
+                    : paid
+                      ? `<span class="paid-chip">PAID</span>`
+                      : `<span class="unpaid-chip">NOT PAID</span>`
+                }
 
               </div>
 
-            </div>
+            </label>
           `;
         }
       )
       .join('');
 
 
-  return `
-    <details
-      class="gw-admin-card"
-      data-gw-card="${gw}"
-      ${open ? 'open' : ''}
-    >
-
-      <summary class="gw-summary">
-
-        <div class="gw-summary-top">
-
-          <div>
-
-            <span class="gw-number">
-              GW ${gw}
-            </span>
-
-            ${
-              gw === currentGw
-                ? `
-                  <span class="gw-current">
-                    CURRENT
-                  </span>
-                `
-                : ''
-            }
-
-          </div>
-
-
-          <div class="gw-payment-count">
-            ${paid}/${total} paid
-          </div>
-
-        </div>
-
-
-        <div class="gw-summary-bottom">
-
-          ${
-            remaining === 0
-              ? '✓ All payments received'
-              : `${remaining} payment${remaining === 1 ? '' : 's'} remaining`
-          }
-
-          ${
-            winner
-              ? ` • 🏆 ${escapeHtml(winner.team)}`
-              : ''
-          }
-
-        </div>
-
-      </summary>
-
-
-      <div class="gw-body">
-
-
-        <div class="gw-winner-summary">
-
-          <div>
-
-            <strong>
-              ${
-                winner
-                  ? `🏆 ${escapeHtml(winner.team)}`
-                  : '🏆 No winner selected'
-              }
-            </strong>
-
-            <small>
-              ${
-                winner
-                  ? escapeHtml(winner.manager)
-                  : `GW${gw} winner`
-              }
-            </small>
-
-          </div>
-
-
-          ${
-            winner
-              ? `
-                <button
-                  type="button"
-
-                  class="clear-winner-btn"
-
-                  data-clear-winner="${gw}"
-                >
-                  Undo Winner
-                </button>
-              `
-              : ''
-          }
-
-        </div>
-
-
-        ${managerHtml}
-
-      </div>
-
-    </details>
-  `;
-}
-
-
-/*
-  =========================================
-  RENDER OUTSTANDING
-  =========================================
-*/
-
-function renderOutstanding() {
-  const gws =
-    outstandingGameweeks();
-
-  if (
-    gws.length === 0
-  ) {
-    $('outstandingList')
-      .innerHTML = `
-        <div class="empty-success">
-          ✓ All Gameweek payments are complete.
-        </div>
-      `;
-
-    return;
-  }
-
-  $('outstandingList')
-    .innerHTML =
-      gws.map(
-        (gw, index) =>
-          renderGameweekCard(
-            gw,
-            index === 0
-          )
-      ).join('');
-}
-
-
-/*
-  =========================================
-  COMPLETED DROPDOWN
-  =========================================
-*/
-
-function renderCompletedDropdown() {
-  const select =
-    $('completedGwSelect');
-
-  const previousValue =
-    select.value;
-
-  const gws =
-    completedGameweeks();
-
-  select.innerHTML = `
-    <option value="">
-      Select a completed GW
-    </option>
-  `;
-
-  gws.forEach(
-    gw => {
-      const option =
-        document.createElement(
-          'option'
-        );
-
-      option.value =
-        String(gw);
-
-      option.textContent =
-        `GW ${gw} — Complete`;
-
-      select.appendChild(
-        option
-      );
-    }
-  );
-
-  if (
-    previousValue &&
-    gws.includes(
-      Number(previousValue)
-    )
-  ) {
-    select.value =
-      previousValue;
-  }
-}
-
-
-/*
-  =========================================
-  RENDER ALL
-  =========================================
-*/
-
-function renderEverything() {
-  renderOutstanding();
-
-  renderCompletedDropdown();
-
-  bindControls();
-}
-
-
-/*
-  =========================================
-  EVENT BINDINGS
-  =========================================
-*/
-
-function bindControls() {
-  /*
-    PAID CHECKBOXES
-  */
-
   document
     .querySelectorAll(
-      '.payment-checkbox'
+      '.draft-paid'
     )
     .forEach(
       checkbox => {
 
         checkbox.addEventListener(
           'change',
-          async () => {
-
-            const gw =
-              Number(
-                checkbox.dataset.gw
-              );
+          () => {
 
             const entryId =
               Number(
-                checkbox.dataset.entry
+                checkbox.dataset
+                  .entry
               );
 
-            const paid =
+            draft.payments[
+              entryId
+            ].paid =
               checkbox.checked;
 
-            checkbox.disabled =
-              true;
+            renderEditor();
 
-            try {
-              await saveChange({
-                gameweek: gw,
-                entryId,
-                action: 'paid',
-                value: paid
-              });
-
-              await refreshPaymentData();
-
-              showMessage(
-                paid
-                  ? `GW${gw} payment marked paid ✓`
-                  : `GW${gw} payment undone`,
-                'success'
-              );
-
-            } catch (error) {
-              checkbox.checked =
-                !paid;
-
-              showMessage(
-                error.message,
-                'error'
-              );
-
-            } finally {
-              checkbox.disabled =
-                false;
-            }
-          }
-        );
-      }
-    );
-
-
-  /*
-    WINNER RADIOS
-  */
-
-  document
-    .querySelectorAll(
-      '.winner-radio'
-    )
-    .forEach(
-      radio => {
-
-        radio.addEventListener(
-          'change',
-          async () => {
-
-            if (!radio.checked) {
-              return;
-            }
-
-            const gw =
-              Number(
-                radio.dataset.gw
-              );
-
-            const entryId =
-              Number(
-                radio.dataset.entry
-              );
-
-            try {
-              await saveChange({
-                gameweek: gw,
-                entryId,
-                action: 'winner',
-                value: true
-              });
-
-              await refreshPaymentData();
-
-              showMessage(
-                `GW${gw} winner updated 🏆`,
-                'success'
-              );
-
-            } catch (error) {
-              showMessage(
-                error.message,
-                'error'
-              );
-
-              await refreshPaymentData();
-            }
-          }
-        );
-      }
-    );
-
-
-  /*
-    CLEAR WINNER
-  */
-
-  document
-    .querySelectorAll(
-      '[data-clear-winner]'
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          'click',
-          async () => {
-
-            const gw =
-              Number(
-                button.dataset
-                  .clearWinner
-              );
-
-            if (
-              !confirm(
-                `Clear the GW${gw} winner?`
-              )
-            ) {
-              return;
-            }
-
-            try {
-              await saveChange({
-                gameweek: gw,
-                action:
-                  'clearWinner'
-              });
-
-              await refreshPaymentData();
-
-              showMessage(
-                `GW${gw} winner removed`,
-                'success'
-              );
-
-            } catch (error) {
-              showMessage(
-                error.message,
-                'error'
-              );
-            }
+            showMessage(
+              'Unsaved changes',
+              'warning'
+            );
           }
         );
       }
@@ -756,17 +413,156 @@ function bindControls() {
 
 
 /*
-  =========================================
-  ADMIN SAVE
-  =========================================
+  ====================================
+  ALL GW HISTORY
+  ====================================
 */
 
-async function saveChange({
-  gameweek,
-  entryId = null,
-  action,
-  value = null
-}) {
+function renderHistory() {
+  const rows = [];
+
+  for (
+    let gw = currentGw;
+    gw >= 1;
+    gw--
+  ) {
+    const paid =
+      paidCountForGw(gw);
+
+    const total =
+      managers.length;
+
+    const remaining =
+      total - paid;
+
+    const winner =
+      winnerForGw(gw);
+
+    rows.push(`
+      <button
+        type="button"
+
+        class="history-gw-row"
+
+        data-history-gw="${gw}"
+      >
+
+        <div>
+
+          <strong>
+            GW ${gw}
+          </strong>
+
+          ${
+            gw === currentGw
+              ? `
+                <span class="current-chip">
+                  CURRENT
+                </span>
+              `
+              : ''
+          }
+
+          <small>
+            ${
+              winner
+                ? `🏆 ${escapeHtml(winner.team)}`
+                : 'No winner yet'
+            }
+          </small>
+
+        </div>
+
+
+        <div class="history-status">
+
+          <strong>
+            ${paid}/${total}
+          </strong>
+
+          <small>
+            ${
+              remaining === 0
+                ? 'ALL PAID'
+                : `${remaining} LEFT`
+            }
+          </small>
+
+        </div>
+
+      </button>
+    `);
+  }
+
+
+  $('adminGwHistory')
+    .innerHTML =
+      rows.join('');
+
+
+  document
+    .querySelectorAll(
+      '[data-history-gw]'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            selectedGw =
+              Number(
+                button.dataset
+                  .historyGw
+              );
+
+            $('gameweekSelect')
+              .value =
+                selectedGw;
+
+            loadDraft();
+
+            window.scrollTo({
+              top: 0,
+              behavior:
+                'smooth'
+            });
+          }
+        );
+      }
+    );
+}
+
+
+/*
+  ====================================
+  LOAD DRAFT
+  ====================================
+*/
+
+function loadDraft() {
+  draft =
+    buildDraft(
+      selectedGw
+    );
+
+  originalDraft =
+    cloneDraft(draft);
+
+  showMessage('');
+
+  renderEditor();
+}
+
+
+/*
+  ====================================
+  SAVE
+  ====================================
+*/
+
+async function saveDraft() {
   const password =
     $('password')
       .value
@@ -775,51 +571,214 @@ async function saveChange({
   if (!password) {
     $('password').focus();
 
-    throw new Error(
-      'Enter your admin password first.'
+    showMessage(
+      'Enter your admin password.',
+      'error'
     );
+
+    return;
   }
 
-  const response =
-    await fetch(
-      '/api/admin/payment',
-      {
-        method: 'POST',
+  $('saveChanges')
+    .disabled =
+      true;
 
-        headers: {
-          'Content-Type':
-            'application/json'
-        },
+  $('saveChanges')
+    .textContent =
+      'Saving…';
 
-        body:
-          JSON.stringify({
-            password,
-            gameweek,
-            entryId,
-            action,
-            value
-          })
-      }
+  try {
+    const payloadPayments =
+      managers.map(
+        manager => ({
+          entryId:
+            manager.entryId,
+
+          paid:
+            draft.payments[
+              manager.entryId
+            ]?.paid === true,
+
+          paidAt:
+            draft.payments[
+              manager.entryId
+            ]?.paidAt ||
+            null
+        })
+      );
+
+
+    const response =
+      await fetch(
+        '/api/admin/save-payments',
+        {
+          method:
+            'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify({
+              password,
+
+              gameweek:
+                selectedGw,
+
+              winnerEntryId:
+                draft.winnerEntryId,
+
+              payments:
+                payloadPayments
+            })
+        }
+      );
+
+
+    const result =
+      await response.json();
+
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ||
+        'Unable to save'
+      );
+    }
+
+
+    await loadAllPayments();
+
+    draft =
+      buildDraft(
+        selectedGw
+      );
+
+    originalDraft =
+      cloneDraft(draft);
+
+    renderEditor();
+
+    renderHistory();
+
+    showMessage(
+      `GW${selectedGw} saved successfully ✓`,
+      'success'
     );
 
-  const result =
-    await response.json();
+  } catch (error) {
 
-  if (!response.ok) {
-    throw new Error(
-      result.error ||
-      'Unable to save change'
+    showMessage(
+      error.message,
+      'error'
     );
+
+  } finally {
+
+    $('saveChanges')
+      .disabled =
+        false;
+
+    $('saveChanges')
+      .textContent =
+        'Save Changes';
   }
-
-  return result;
 }
 
 
 /*
-  =========================================
-  LOAD FPL MANAGERS
-  =========================================
+  ====================================
+  RESET / UNDO UNSAVED
+  ====================================
+*/
+
+function resetDraft() {
+  if (!originalDraft) {
+    return;
+  }
+
+  draft =
+    cloneDraft(
+      originalDraft
+    );
+
+  renderEditor();
+
+  showMessage(
+    'Unsaved changes removed.'
+  );
+}
+
+
+/*
+  ====================================
+  WINNER CHANGE
+  ====================================
+*/
+
+$('winnerSelect')
+  .addEventListener(
+    'change',
+    event => {
+
+      draft.winnerEntryId =
+        event.target.value
+          ? Number(
+              event.target.value
+            )
+          : null;
+
+      renderEditor();
+
+      showMessage(
+        'Unsaved changes',
+        'warning'
+      );
+    }
+  );
+
+
+/*
+  ====================================
+  GAMEWEEK CHANGE
+  ====================================
+*/
+
+$('gameweekSelect')
+  .addEventListener(
+    'change',
+    event => {
+
+      selectedGw =
+        Number(
+          event.target.value
+        );
+
+      loadDraft();
+    }
+  );
+
+
+$('saveChanges')
+  .addEventListener(
+    'click',
+    saveDraft
+  );
+
+
+$('resetChanges')
+  .addEventListener(
+    'click',
+    resetDraft
+  );
+
+
+/*
+  ====================================
+  API LOADERS
+  ====================================
 */
 
 async function loadManagers() {
@@ -848,6 +807,9 @@ async function loadManagers() {
       1
     );
 
+  selectedGw =
+    currentGw;
+
   managers =
     Array.isArray(
       dashboard.managers
@@ -855,17 +817,11 @@ async function loadManagers() {
       ? dashboard.managers
       : [];
 
-  $('currentGwLabel')
+  $('adminSubtitle')
     .textContent =
       `Current FPL Gameweek • GW ${currentGw}`;
 }
 
-
-/*
-  =========================================
-  LOAD ALL PAYMENTS
-  =========================================
-*/
 
 async function loadAllPayments() {
   const response =
@@ -897,107 +853,33 @@ async function loadAllPayments() {
 
 
 /*
-  =========================================
-  REFRESH AFTER SAVE
-  =========================================
-*/
-
-async function refreshPaymentData() {
-  await loadAllPayments();
-
-  renderEverything();
-
-  /*
-    Refresh selected completed GW too,
-    because undoing a payment can move
-    it back to outstanding.
-  */
-
-  const selected =
-    Number(
-      $('completedGwSelect')
-        .value
-    );
-
-  if (selected) {
-    renderCompletedGw(
-      selected
-    );
-  }
-}
-
-
-/*
-  =========================================
-  COMPLETED GW VIEW
-  =========================================
-*/
-
-function renderCompletedGw(gw) {
-  if (!gw) {
-    $('completedGwContainer')
-      .innerHTML = '';
-
-    return;
-  }
-
-  $('completedGwContainer')
-    .innerHTML =
-      renderGameweekCard(
-        gw,
-        true
-      );
-
-  bindControls();
-}
-
-
-$('completedGwSelect')
-  .addEventListener(
-    'change',
-    event => {
-
-      const gw =
-        Number(
-          event.target.value
-        );
-
-      renderCompletedGw(
-        gw
-      );
-    }
-  );
-
-
-/*
-  =========================================
-  INITIAL LOAD
-  =========================================
+  ====================================
+  INIT
+  ====================================
 */
 
 async function init() {
   try {
-    $('lastUpdated')
-      .textContent =
-        'Loading…';
-
     await loadManagers();
 
     await loadAllPayments();
 
-    renderEverything();
+    buildGameweekSelect();
+
+    loadDraft();
+
+    renderHistory();
 
     $('lastUpdated')
       .textContent =
-        `Updated ${new Date().toLocaleTimeString([], {
+        `Loaded ${new Date().toLocaleTimeString([], {
           hour: 'numeric',
           minute: '2-digit'
         })}`;
 
   } catch (error) {
-    console.error(error);
 
-    $('outstandingList')
+    $('adminManagerList')
       .innerHTML = `
         <div class="empty">
           ${escapeHtml(error.message)}
