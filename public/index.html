@@ -30,6 +30,8 @@
 
   <main class="app">
 
+    <!-- HEADER -->
+
     <header class="topbar">
 
       <div>
@@ -55,12 +57,15 @@
         id="refresh"
         class="icon-button"
         type="button"
+        aria-label="Refresh"
       >
         ↻
       </button>
 
     </header>
 
+
+    <!-- TOP NAVIGATION -->
 
     <nav class="main-nav">
 
@@ -103,7 +108,7 @@
     </nav>
 
 
-    <!-- CURRENT GW -->
+    <!-- CURRENT GAMEWEEK -->
 
     <section
       id="gameweek"
@@ -121,7 +126,9 @@
 
         <h2>
           Gameweek
-          <span id="gw">—</span>
+          <span id="gw">
+            —
+          </span>
         </h2>
 
         <p id="statusText">
@@ -172,18 +179,26 @@
       <div
         id="weeklyList"
         class="standings-list"
-      ></div>
+      >
+
+        <div class="empty">
+          Loading standings…
+        </div>
+
+      </div>
 
     </section>
 
 
-    <!-- PAYMENTS ALL GW -->
+    <!-- PAYMENTS -->
 
     <section
       id="payments"
       class="panel"
       hidden
     >
+
+      <!-- ZELLE -->
 
       <section class="zelle-card">
 
@@ -213,6 +228,8 @@
 
       </section>
 
+
+      <!-- PAYMENT HISTORY -->
 
       <div class="payment-history-header">
 
@@ -268,7 +285,7 @@
         </h2>
 
         <p>
-          Coming next.
+          Win probability engine coming next.
         </p>
 
       </div>
@@ -299,7 +316,13 @@
       <div
         id="overallList"
         class="standings-list"
-      ></div>
+      >
+
+        <div class="empty">
+          Loading…
+        </div>
+
+      </div>
 
     </section>
 
@@ -313,6 +336,95 @@
     </footer>
 
   </main>
+
+
+  <!-- SHARE PREVIEW MODAL -->
+
+  <div
+    id="shareModal"
+    class="share-modal"
+    hidden
+  >
+
+    <div
+      class="share-modal-backdrop"
+      data-close-share
+    ></div>
+
+    <div class="share-modal-content">
+
+      <div class="share-modal-header">
+
+        <div>
+
+          <span class="label">
+            PAYMENT REMINDER
+          </span>
+
+          <h3 id="shareModalTitle">
+            GW —
+          </h3>
+
+        </div>
+
+        <button
+          id="closeShare"
+          class="share-close"
+          type="button"
+        >
+          ✕
+        </button>
+
+      </div>
+
+
+      <div id="sharePreview">
+
+        <div class="share-card">
+
+          <div class="share-card-brand">
+            BALL KNOWLEDGE ONLY
+          </div>
+
+          <div class="share-card-gw">
+            GW 1 PAYMENT REMINDER
+          </div>
+
+          <div class="share-card-rule"></div>
+
+          <div
+            id="sharePreviewBody"
+            class="share-preview-body"
+          ></div>
+
+        </div>
+
+      </div>
+
+
+      <div class="share-modal-actions">
+
+        <button
+          id="copyReminder"
+          type="button"
+          class="secondary-button"
+        >
+          Copy Text
+        </button>
+
+        <button
+          id="shareReminderImage"
+          type="button"
+          class="primary-button"
+        >
+          Share Image
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
 
 
   <script src="/app.js"></script>
