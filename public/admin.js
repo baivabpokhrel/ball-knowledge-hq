@@ -5,22 +5,19 @@ const LEAGUE_ID =
   '92378';
 
 let currentGw = 1;
-
 let selectedGw = 1;
 
 let managers = [];
-
 let allPayments = [];
 
 let originalDraft = null;
-
 let draft = null;
 
 
 /*
-  ====================================
+  ======================================
   HELPERS
-  ====================================
+  ======================================
 */
 
 function escapeHtml(value) {
@@ -52,6 +49,12 @@ function showMessage(
 }
 
 
+/*
+  ======================================
+  STORED PAYMENT HELPERS
+  ======================================
+*/
+
 function getStoredPayment(
   gw,
   entryId
@@ -65,17 +68,6 @@ function getStoredPayment(
           Number(entryId)
     ) || null
   );
-}
-
-
-function paidCountForGw(gw) {
-  return managers.filter(
-    manager =>
-      getStoredPayment(
-        gw,
-        manager.entryId
-      )?.paid === true
-  ).length;
 }
 
 
@@ -102,10 +94,55 @@ function winnerForGw(gw) {
 }
 
 
+function paidCountForGw(gw) {
+  return managers.filter(
+    manager =>
+      getStoredPayment(
+        gw,
+        manager.entryId
+      )?.paid === true
+  ).length;
+}
+
+
 /*
-  ====================================
-  CREATE LOCAL DRAFT
-  ====================================
+  ======================================
+  REPLACE ONE GW IN LOCAL CACHE
+  ======================================
+*/
+
+function replaceGwPayments(
+  gw,
+  rows
+) {
+  /*
+    Remove old local rows for this GW.
+  */
+
+  allPayments =
+    allPayments.filter(
+      item =>
+        Number(item.gameweek) !==
+        Number(gw)
+    );
+
+  /*
+    Insert the freshly verified rows
+    returned directly by Supabase.
+  */
+
+  if (Array.isArray(rows)) {
+    allPayments.push(
+      ...rows
+    );
+  }
+}
+
+
+/*
+  ======================================
+  DRAFT
+  ======================================
 */
 
 function buildDraft(gw) {
@@ -126,16 +163,20 @@ function buildDraft(gw) {
           stored?.paid === true,
 
         paidAt:
-          stored?.paid_at || null
+          stored?.paid_at ||
+          null
       };
     }
   );
 
+
   const winner =
     winnerForGw(gw);
 
+
   return {
-    gameweek: gw,
+    gameweek:
+      gw,
 
     winnerEntryId:
       winner
@@ -158,9 +199,9 @@ function cloneDraft(value) {
 
 
 /*
-  ====================================
-  GW SELECT
-  ====================================
+  ======================================
+  GW DROPDOWN
+  ======================================
 */
 
 function buildGameweekSelect() {
@@ -179,7 +220,8 @@ function buildGameweekSelect() {
         'option'
       );
 
-    option.value = gw;
+    option.value =
+      gw;
 
     option.textContent =
       gw === currentGw
@@ -197,9 +239,9 @@ function buildGameweekSelect() {
 
 
 /*
-  ====================================
-  WINNER SELECT
-  ====================================
+  ======================================
+  WINNER DROPDOWN
+  ======================================
 */
 
 function buildWinnerSelect() {
@@ -211,6 +253,7 @@ function buildWinnerSelect() {
       No winner selected
     </option>
   `;
+
 
   managers
     .slice()
@@ -240,6 +283,7 @@ function buildWinnerSelect() {
       }
     );
 
+
   select.value =
     draft?.winnerEntryId
       ? String(
@@ -250,9 +294,9 @@ function buildWinnerSelect() {
 
 
 /*
-  ====================================
+  ======================================
   RENDER EDITOR
-  ====================================
+  ======================================
 */
 
 function renderEditor() {
@@ -260,11 +304,14 @@ function renderEditor() {
     return;
   }
 
+
   $('editingGw')
     .textContent =
       selectedGw;
 
+
   buildWinnerSelect();
+
 
   const paidCount =
     managers.filter(
@@ -274,6 +321,7 @@ function renderEditor() {
         ]?.paid === true
     ).length;
 
+
   $('draftPaidCount')
     .textContent =
       `${paidCount}/${managers.length}`;
@@ -282,7 +330,6 @@ function renderEditor() {
   const sorted =
     [...managers].sort(
       (a, b) => {
-
         const aPaid =
           draft.payments[
             a.entryId
@@ -293,6 +340,7 @@ function renderEditor() {
             b.entryId
           ]?.paid === true;
 
+
         if (
           aPaid !== bPaid
         ) {
@@ -301,10 +349,14 @@ function renderEditor() {
             : -1;
         }
 
-        return String(a.team)
-          .localeCompare(
-            String(b.team)
-          );
+
+        return String(
+          a.team
+        ).localeCompare(
+          String(
+            b.team
+          )
+        );
       }
     );
 
@@ -319,6 +371,7 @@ function renderEditor() {
               manager.entryId
             ]?.paid === true;
 
+
           const winner =
             Number(
               draft.winnerEntryId
@@ -326,6 +379,7 @@ function renderEditor() {
             Number(
               manager.entryId
             );
+
 
           return `
             <label
@@ -346,6 +400,7 @@ function renderEditor() {
                 ${paid ? 'checked' : ''}
               >
 
+
               <div class="manager-info">
 
                 <strong>
@@ -358,14 +413,27 @@ function renderEditor() {
 
               </div>
 
+
               <div class="admin-row-state">
 
                 ${
                   winner
-                    ? `<span class="winner-chip">🏆 WINNER</span>`
+                    ? `
+                      <span class="winner-chip">
+                        🏆 WINNER
+                      </span>
+                    `
                     : paid
-                      ? `<span class="paid-chip">PAID</span>`
-                      : `<span class="unpaid-chip">NOT PAID</span>`
+                      ? `
+                        <span class="paid-chip">
+                          PAID
+                        </span>
+                      `
+                      : `
+                        <span class="unpaid-chip">
+                          NOT PAID
+                        </span>
+                      `
                 }
 
               </div>
@@ -390,16 +458,23 @@ function renderEditor() {
 
             const entryId =
               Number(
-                checkbox.dataset
-                  .entry
+                checkbox.dataset.entry
               );
+
 
             draft.payments[
               entryId
             ].paid =
               checkbox.checked;
 
+
+            /*
+              Update immediately.
+              Still NOT saved to DB.
+            */
+
             renderEditor();
+
 
             showMessage(
               'Unsaved changes',
@@ -413,13 +488,14 @@ function renderEditor() {
 
 
 /*
-  ====================================
-  ALL GW HISTORY
-  ====================================
+  ======================================
+  HISTORY
+  ======================================
 */
 
 function renderHistory() {
   const rows = [];
+
 
   for (
     let gw = currentGw;
@@ -433,10 +509,14 @@ function renderHistory() {
       managers.length;
 
     const remaining =
-      total - paid;
+      Math.max(
+        0,
+        total - paid
+      );
 
     const winner =
       winnerForGw(gw);
+
 
     rows.push(`
       <button
@@ -467,7 +547,7 @@ function renderHistory() {
             ${
               winner
                 ? `🏆 ${escapeHtml(winner.team)}`
-                : 'No winner yet'
+                : 'No winner selected'
             }
           </small>
 
@@ -513,20 +593,23 @@ function renderHistory() {
 
             selectedGw =
               Number(
-                button.dataset
-                  .historyGw
+                button.dataset.historyGw
               );
+
 
             $('gameweekSelect')
               .value =
-                selectedGw;
+                String(
+                  selectedGw
+                );
+
 
             loadDraft();
 
+
             window.scrollTo({
               top: 0,
-              behavior:
-                'smooth'
+              behavior: 'smooth'
             });
           }
         );
@@ -536,9 +619,9 @@ function renderHistory() {
 
 
 /*
-  ====================================
+  ======================================
   LOAD DRAFT
-  ====================================
+  ======================================
 */
 
 function loadDraft() {
@@ -547,19 +630,76 @@ function loadDraft() {
       selectedGw
     );
 
+
   originalDraft =
-    cloneDraft(draft);
+    cloneDraft(
+      draft
+    );
+
 
   showMessage('');
+
 
   renderEditor();
 }
 
 
 /*
-  ====================================
-  SAVE
-  ====================================
+  ======================================
+  WINNER CHANGE
+  ======================================
+*/
+
+$('winnerSelect')
+  .addEventListener(
+    'change',
+    event => {
+
+      draft.winnerEntryId =
+        event.target.value
+          ? Number(
+              event.target.value
+            )
+          : null;
+
+
+      renderEditor();
+
+
+      showMessage(
+        'Unsaved changes',
+        'warning'
+      );
+    }
+  );
+
+
+/*
+  ======================================
+  CHANGE GW
+  ======================================
+*/
+
+$('gameweekSelect')
+  .addEventListener(
+    'change',
+    event => {
+
+      selectedGw =
+        Number(
+          event.target.value
+        );
+
+
+      loadDraft();
+    }
+  );
+
+
+/*
+  ======================================
+  SAVE PAYMENT GW
+  ======================================
 */
 
 async function saveDraft() {
@@ -567,6 +707,7 @@ async function saveDraft() {
     $('password')
       .value
       .trim();
+
 
   if (!password) {
     $('password').focus();
@@ -579,15 +720,20 @@ async function saveDraft() {
     return;
   }
 
-  $('saveChanges')
-    .disabled =
-      true;
 
-  $('saveChanges')
-    .textContent =
-      'Saving…';
+  const button =
+    $('saveChanges');
+
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    'Saving…';
+
 
   try {
+
     const payloadPayments =
       managers.map(
         manager => ({
@@ -612,8 +758,7 @@ async function saveDraft() {
       await fetch(
         '/api/admin/save-payments',
         {
-          method:
-            'POST',
+          method: 'POST',
 
           headers: {
             'Content-Type':
@@ -649,24 +794,53 @@ async function saveDraft() {
     }
 
 
-    await loadAllPayments();
+    if (
+      result.verified !==
+      true
+    ) {
+      throw new Error(
+        'Database did not verify the saved changes.'
+      );
+    }
+
+
+    /*
+      IMPORTANT:
+
+      Use the verified records that came
+      DIRECTLY back from Supabase.
+
+      No waiting for another API refresh.
+    */
+
+    replaceGwPayments(
+      selectedGw,
+      result.payments
+    );
+
 
     draft =
       buildDraft(
         selectedGw
       );
 
+
     originalDraft =
-      cloneDraft(draft);
+      cloneDraft(
+        draft
+      );
+
 
     renderEditor();
 
     renderHistory();
 
+
     showMessage(
-      `GW${selectedGw} saved successfully ✓`,
+      `GW${selectedGw} saved & verified ✓`,
       'success'
     );
+
 
   } catch (error) {
 
@@ -675,23 +849,22 @@ async function saveDraft() {
       'error'
     );
 
+
   } finally {
 
-    $('saveChanges')
-      .disabled =
-        false;
+    button.disabled =
+      false;
 
-    $('saveChanges')
-      .textContent =
-        'Save Changes';
+    button.textContent =
+      'Save Changes';
   }
 }
 
 
 /*
-  ====================================
-  RESET / UNDO UNSAVED
-  ====================================
+  ======================================
+  UNDO UNSAVED CHANGES
+  ======================================
 */
 
 function resetDraft() {
@@ -699,12 +872,15 @@ function resetDraft() {
     return;
   }
 
+
   draft =
     cloneDraft(
       originalDraft
     );
 
+
   renderEditor();
+
 
   showMessage(
     'Unsaved changes removed.'
@@ -713,72 +889,128 @@ function resetDraft() {
 
 
 /*
-  ====================================
-  WINNER CHANGE
-  ====================================
+  ======================================
+  SAVE ZELLE / FEE
+  ======================================
 */
 
-$('winnerSelect')
-  .addEventListener(
-    'change',
-    event => {
+async function saveSettings() {
+  const password =
+    $('password')
+      .value
+      .trim();
 
-      draft.winnerEntryId =
-        event.target.value
-          ? Number(
-              event.target.value
-            )
-          : null;
 
-      renderEditor();
+  if (!password) {
+    $('password').focus();
 
-      showMessage(
-        'Unsaved changes',
-        'warning'
+    showMessage(
+      'Enter your admin password.',
+      'error'
+    );
+
+    return;
+  }
+
+
+  const zelle =
+    $('zelleInput')
+      .value
+      .trim();
+
+
+  const fee =
+    Number(
+      $('feeInput')
+        .value
+    );
+
+
+  const button =
+    $('saveSettings');
+
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    'Saving…';
+
+
+  try {
+
+    const response =
+      await fetch(
+        '/api/admin/settings',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify({
+              password,
+              zelle,
+              fee
+            })
+        }
+      );
+
+
+    const result =
+      await response.json();
+
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ||
+        'Unable to save settings'
       );
     }
-  );
+
+
+    $('zelleInput')
+      .value =
+        result.settings.zelle;
+
+
+    $('feeInput')
+      .value =
+        result.settings.fee;
+
+
+    showMessage(
+      'Payment settings saved ✓',
+      'success'
+    );
+
+
+  } catch (error) {
+
+    showMessage(
+      error.message,
+      'error'
+    );
+
+
+  } finally {
+
+    button.disabled =
+      false;
+
+    button.textContent =
+      'Save Payment Settings';
+  }
+}
 
 
 /*
-  ====================================
-  GAMEWEEK CHANGE
-  ====================================
-*/
-
-$('gameweekSelect')
-  .addEventListener(
-    'change',
-    event => {
-
-      selectedGw =
-        Number(
-          event.target.value
-        );
-
-      loadDraft();
-    }
-  );
-
-
-$('saveChanges')
-  .addEventListener(
-    'click',
-    saveDraft
-  );
-
-
-$('resetChanges')
-  .addEventListener(
-    'click',
-    resetDraft
-  );
-
-
-/*
-  ====================================
-  API LOADERS
-  ====================================
+  ======================================
+  API LOAD
+  ======================================
 */
 
 async function loadManagers() {
@@ -791,8 +1023,10 @@ async function loadManagers() {
       }
     );
 
+
   const dashboard =
     await response.json();
+
 
   if (!response.ok) {
     throw new Error(
@@ -801,14 +1035,17 @@ async function loadManagers() {
     );
   }
 
+
   currentGw =
     Number(
       dashboard.gameweek?.id ||
       1
     );
 
+
   selectedGw =
     currentGw;
+
 
   managers =
     Array.isArray(
@@ -816,6 +1053,7 @@ async function loadManagers() {
     )
       ? dashboard.managers
       : [];
+
 
   $('adminSubtitle')
     .textContent =
@@ -833,8 +1071,10 @@ async function loadAllPayments() {
       }
     );
 
+
   const data =
     await response.json();
+
 
   if (!response.ok) {
     throw new Error(
@@ -843,32 +1083,80 @@ async function loadAllPayments() {
     );
   }
 
+
   allPayments =
     Array.isArray(
       data.payments
     )
       ? data.payments
       : [];
+
+
+  $('zelleInput')
+    .value =
+      data.zelle ||
+      '';
+
+
+  $('feeInput')
+    .value =
+      data.fee ??
+      '';
 }
 
 
 /*
-  ====================================
+  ======================================
+  BUTTONS
+  ======================================
+*/
+
+$('saveChanges')
+  .addEventListener(
+    'click',
+    saveDraft
+  );
+
+
+$('resetChanges')
+  .addEventListener(
+    'click',
+    resetDraft
+  );
+
+
+$('saveSettings')
+  .addEventListener(
+    'click',
+    saveSettings
+  );
+
+
+/*
+  ======================================
   INIT
-  ====================================
+  ======================================
 */
 
 async function init() {
   try {
+
+    $('lastUpdated')
+      .textContent =
+        'Loading…';
+
+
     await loadManagers();
 
     await loadAllPayments();
+
 
     buildGameweekSelect();
 
     loadDraft();
 
     renderHistory();
+
 
     $('lastUpdated')
       .textContent =
@@ -877,7 +1165,13 @@ async function init() {
           minute: '2-digit'
         })}`;
 
+
   } catch (error) {
+
+    console.error(
+      error
+    );
+
 
     $('adminManagerList')
       .innerHTML = `
@@ -885,6 +1179,7 @@ async function init() {
           ${escapeHtml(error.message)}
         </div>
       `;
+
 
     showMessage(
       error.message,
