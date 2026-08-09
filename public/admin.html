@@ -24,12 +24,398 @@
     href="/style.css"
   >
 
+  <style>
+
+    .admin-top-card {
+      padding: 16px;
+      margin-bottom: 15px;
+
+      border: 1px solid var(--border);
+      border-radius: 18px;
+
+      background: var(--surface);
+    }
+
+    .admin-field {
+      margin-bottom: 13px;
+    }
+
+    .admin-field:last-child {
+      margin-bottom: 0;
+    }
+
+    .admin-field label {
+      display: block;
+
+      margin-bottom: 6px;
+
+      color: var(--muted);
+
+      font-size: 10px;
+      font-weight: 800;
+
+      letter-spacing: .05em;
+    }
+
+    .admin-field input,
+    .admin-field select {
+      width: 100%;
+      min-height: 48px;
+
+      padding: 0 13px;
+
+      border: 1px solid var(--border);
+      border-radius: 12px;
+
+      background: var(--surface-2);
+      color: var(--text);
+
+      font-size: 16px;
+    }
+
+    .admin-message {
+      min-height: 20px;
+
+      margin: 8px 0 14px;
+
+      color: var(--muted);
+
+      text-align: center;
+
+      font-size: 11px;
+    }
+
+    .admin-message.success {
+      color: var(--green);
+    }
+
+    .admin-message.error {
+      color: var(--red);
+    }
+
+    .outstanding-title {
+      margin-bottom: 4px;
+    }
+
+    .outstanding-subtitle {
+      margin-bottom: 16px;
+
+      color: var(--muted);
+
+      font-size: 12px;
+    }
+
+    .gw-admin-card {
+      margin-bottom: 12px;
+
+      overflow: hidden;
+
+      border: 1px solid var(--border);
+      border-radius: 18px;
+
+      background: var(--surface);
+    }
+
+    .gw-admin-card[open] {
+      border-color: #4f4226;
+    }
+
+    .gw-summary {
+      list-style: none;
+
+      cursor: pointer;
+
+      padding: 15px;
+    }
+
+    .gw-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .gw-summary-top {
+      display: flex;
+
+      align-items: center;
+      justify-content: space-between;
+
+      gap: 10px;
+    }
+
+    .gw-number {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .gw-current {
+      display: inline-block;
+
+      margin-left: 5px;
+
+      padding: 3px 6px;
+
+      border-radius: 7px;
+
+      background: var(--gold-soft);
+      color: var(--gold);
+
+      font-size: 8px;
+      font-weight: 900;
+    }
+
+    .gw-payment-count {
+      color: var(--gold);
+
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .gw-summary-bottom {
+      margin-top: 6px;
+
+      color: var(--muted);
+
+      font-size: 11px;
+    }
+
+    .gw-body {
+      padding:
+        0 13px 14px;
+    }
+
+    .gw-winner-summary {
+      display: flex;
+
+      justify-content: space-between;
+      align-items: center;
+
+      gap: 8px;
+
+      margin-bottom: 12px;
+
+      padding: 11px;
+
+      border-radius: 12px;
+
+      background: var(--surface-2);
+    }
+
+    .gw-winner-summary strong {
+      display: block;
+
+      font-size: 12px;
+    }
+
+    .gw-winner-summary small {
+      display: block;
+
+      margin-top: 2px;
+
+      color: var(--muted);
+
+      font-size: 10px;
+    }
+
+    .clear-winner-btn {
+      flex-shrink: 0;
+
+      min-height: 36px;
+
+      padding: 0 10px;
+
+      border: 1px solid var(--border);
+      border-radius: 9px;
+
+      background: transparent;
+      color: var(--muted);
+
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .admin-manager {
+      padding: 12px 0;
+
+      border-top:
+        1px solid var(--border);
+    }
+
+    .admin-manager:first-of-type {
+      border-top: 0;
+    }
+
+    .manager-title {
+      margin-bottom: 10px;
+    }
+
+    .manager-title strong {
+      display: block;
+
+      font-size: 14px;
+    }
+
+    .manager-title small {
+      display: block;
+
+      margin-top: 2px;
+
+      color: var(--muted);
+
+      font-size: 11px;
+    }
+
+    .admin-options {
+      display: grid;
+
+      grid-template-columns:
+        1fr 1fr;
+
+      gap: 8px;
+    }
+
+    .admin-option {
+      display: flex;
+
+      align-items: center;
+
+      gap: 8px;
+
+      min-height: 43px;
+
+      padding: 8px 10px;
+
+      border:
+        1px solid
+        var(--border);
+
+      border-radius:
+        11px;
+
+      background:
+        var(--surface-2);
+
+      font-size:
+        11px;
+
+      font-weight:
+        700;
+    }
+
+    .admin-option input {
+      width: 19px;
+      height: 19px;
+
+      margin: 0;
+
+      accent-color:
+        var(--gold);
+    }
+
+    .admin-option.paid {
+      border-color:
+        #225e40;
+
+      background:
+        var(--green-soft);
+
+      color:
+        var(--green);
+    }
+
+    .admin-option.winner {
+      border-color:
+        #685525;
+
+      background:
+        var(--gold-soft);
+
+      color:
+        var(--gold);
+    }
+
+    .completed-area {
+      margin-top: 28px;
+
+      padding-top: 20px;
+
+      border-top:
+        1px solid
+        var(--border);
+    }
+
+    .completed-area h3 {
+      margin-bottom: 4px;
+    }
+
+    .completed-area p {
+      margin-bottom: 12px;
+
+      color:
+        var(--muted);
+
+      font-size:
+        11px;
+    }
+
+    .completed-select {
+      width: 100%;
+      min-height: 47px;
+
+      padding: 0 12px;
+
+      border:
+        1px solid
+        var(--border);
+
+      border-radius:
+        12px;
+
+      background:
+        var(--surface-2);
+
+      color:
+        var(--text);
+
+      font-size:
+        15px;
+    }
+
+    .completed-container {
+      margin-top: 12px;
+    }
+
+    .empty-success {
+      padding: 24px 16px;
+
+      border:
+        1px solid
+        #20583c;
+
+      border-radius:
+        16px;
+
+      background:
+        var(--green-soft);
+
+      color:
+        var(--green);
+
+      text-align:
+        center;
+
+      font-size:
+        13px;
+    }
+
+  </style>
+
 </head>
 
 
 <body>
 
   <main class="app">
+
+    <!-- HEADER -->
 
     <header class="topbar">
 
@@ -40,123 +426,124 @@
         </p>
 
         <h1>
-          GW Admin
+          Admin
         </h1>
 
-        <p class="connection">
-          Payment & winner control
+        <p
+          id="currentGwLabel"
+          class="connection"
+        >
+          Loading current GW…
         </p>
 
       </div>
 
+
+      <a
+        href="/"
+        class="copy-button"
+        style="
+          display:flex;
+          align-items:center;
+          text-decoration:none;
+        "
+      >
+        SITE
+      </a>
+
     </header>
 
 
-    <!-- PASSWORD -->
+    <!-- LOGIN -->
 
-    <section class="payment-summary">
+    <section class="admin-top-card">
 
-      <label
-        class="label"
-        for="password"
-      >
-        ADMIN PASSWORD
-      </label>
+      <div class="admin-field">
 
-      <input
-        id="password"
-        class="admin-input"
-        type="password"
-        autocomplete="current-password"
-        placeholder="Enter password"
-      >
+        <label for="password">
+          ADMIN PASSWORD
+        </label>
 
-    </section>
-
-
-    <!-- SUMMARY -->
-
-    <section class="payment-summary">
-
-      <div class="summary-top">
-
-        <div>
-
-          <span class="label">
-            GAMEWEEK
-          </span>
-
-          <strong>
-            GW
-            <span id="adminGw">
-              —
-            </span>
-          </strong>
-
-        </div>
-
-
-        <button
-          id="reloadAdmin"
-          type="button"
-          class="copy-button"
+        <input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Enter password"
         >
-          REFRESH
-        </button>
 
-      </div>
-
-
-      <div id="adminTotals">
-        Loading…
       </div>
 
     </section>
 
 
-    <!-- MANAGERS -->
+    <div
+      id="adminMessage"
+      class="admin-message"
+    ></div>
+
+
+    <!-- OUTSTANDING -->
 
     <section>
 
-      <div class="section-heading">
+      <h2 class="outstanding-title">
+        Outstanding Gameweeks
+      </h2>
 
-        <div>
+      <p class="outstanding-subtitle">
+        A Gameweek stays here until every manager is marked paid.
+      </p>
 
-          <h3>
-            Managers
-          </h3>
 
-          <p>
-            Manage payments and Gameweek winner.
-          </p>
+      <div id="outstandingList">
 
+        <div class="empty">
+          Loading payment history…
         </div>
 
       </div>
+
+    </section>
+
+
+    <!-- COMPLETED -->
+
+    <section class="completed-area">
+
+      <h3>
+        Completed Gameweeks
+      </h3>
+
+      <p>
+        Review or undo payments from an older completed Gameweek.
+      </p>
+
+
+      <select
+        id="completedGwSelect"
+        class="completed-select"
+      >
+
+        <option value="">
+          Select a completed GW
+        </option>
+
+      </select>
 
 
       <div
-        id="adminList"
-        class="manager-list"
-      >
-
-        <div class="empty">
-          Loading…
-        </div>
-
-      </div>
+        id="completedGwContainer"
+        class="completed-container"
+      ></div>
 
     </section>
 
 
     <footer class="last-updated">
 
-      <a
-        href="/"
-        class="back-link"
-      >
-        ← Public Dashboard
-      </a>
+      <span id="lastUpdated">
+        Changes save automatically.
+      </span>
 
     </footer>
 
