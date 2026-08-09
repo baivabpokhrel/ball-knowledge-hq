@@ -3,7 +3,7 @@ const FPL = 'https://fantasy.premierleague.com/api';
 async function getJson(url) {
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'BallKnowledgeHQ/0.4',
+      'User-Agent': 'BallKnowledgeHQ/0.5',
       Accept: 'application/json'
     }
   });
@@ -17,63 +17,8 @@ async function getJson(url) {
   return response.json();
 }
 
-function eventStatus(event) {
-  const now = new Date();
-
-  const deadline = event?.deadline_time
-    ? new Date(event.deadline_time)
-    : null;
-
-  // Before the gameweek starts
-  if (
-    deadline &&
-    now < deadline &&
-    !event?.finished &&
-    !event?.data_checked
-  ) {
-    return {
-      code: 'PRE-SEASON',
-      label: `Waiting for ${event.name}`,
-      final: false
-    };
-  }
-
-  // FPL has completed all checks
-  if (event?.data_checked) {
-    return {
-      code: 'FINAL',
-      label: 'Final after FPL checks',
-      final: true
-    };
-  }
-
-  // Matches finished but FPL may still update points
-  if (event?.finished) {
-    return {
-      code: 'PROCESSING',
-      label: 'Waiting for bonuses and corrections',
-      final: false
-    };
-  }
-
-  // Gameweek underway
-  return {
-    code: 'LIVE',
-    label: 'Live / provisional points',
-    final: false
-  };
-}
 
 function fullManagerName(row) {
-  /*
-    During preseason FPL often gives:
-    player_first_name
-    player_last_name
-
-    Once regular standings exist,
-    player_name is normally available.
-  */
-
   const firstName =
     row.player_first_name || '';
 
@@ -90,6 +35,52 @@ function fullManagerName(row) {
   );
 }
 
+
+function eventStatus(event) {
+  const now = new Date();
+
+  const deadline =
+    event?.deadline_time
+      ? new Date(event.deadline_time)
+      : null;
+
+  if (
+    deadline &&
+    now < deadline &&
+    !event?.finished &&
+    !event?.data_checked
+  ) {
+    return {
+      code: 'PRE-SEASON',
+      label: `Waiting for ${event.name}`,
+      final: false
+    };
+  }
+
+  if (event?.data_checked) {
+    return {
+      code: 'FINAL',
+      label: 'Final after FPL checks',
+      final: true
+    };
+  }
+
+  if (event?.finished) {
+    return {
+      code: 'PROCESSING',
+      label: 'Waiting for bonuses and corrections',
+      final: false
+    };
+  }
+
+  return {
+    code: 'LIVE',
+    label: 'Live / provisional points',
+    final: false
+  };
+}
+
+
 export default async function handler(req, res) {
   const leagueId = String(
     req.query.leagueId ||
@@ -102,17 +93,15 @@ export default async function handler(req, res) {
 
   if (!/^\d+$/.test(leagueId)) {
     return res.status(400).json({
-      error:
-        'Numeric league ID required',
-      needsLeagueId: true
+      error: 'Numeric league ID required'
     });
   }
 
   try {
     /*
-      ------------------------------------------------
-      1. GET FPL GENERAL DATA
-      ------------------------------------------------
+      --------------------------------
+      FPL GENERAL DATA
+      --------------------------------
     */
 
     const bootstrap =
@@ -120,81 +109,76 @@ export default async function handler(req, res) {
         `${FPL}/bootstrap-static/`
       );
 
-    /*
-      Work out which Gameweek we should display.
-    */
 
     let event =
       requestedGw
         ? bootstrap.events.find(
-            (e) =>
+            e =>
               e.id === requestedGw
           )
         : null;
 
+
     event ||=
       bootstrap.events.find(
-        (e) => e.is_current
+        e => e.is_current
       ) ||
       bootstrap.events.find(
-        (e) => e.is_next
+        e => e.is_next
       ) ||
       bootstrap.events.find(
-        (e) => e.is_previous
+        e => e.is_previous
       ) ||
       bootstrap.events[0];
 
+
     if (!event) {
       throw new Error(
-        'Unable to determine current FPL Gameweek.'
+        'Unable to determine current Gameweek.'
       );
     }
 
-    const gw = event.id;
+
+    const gw =
+      event.id;
+
 
     /*
-      ------------------------------------------------
-      2. GET PRIVATE LEAGUE DATA
-      ------------------------------------------------
+      --------------------------------
+      PRIVATE LEAGUE
+      --------------------------------
     */
-
-    const standingsUrl =
-      `${FPL}/leagues-classic/${leagueId}/standings/` +
-      `?page_new_entries=1&page_standings=1&phase=1`;
 
     const standings =
       await getJson(
-        standingsUrl
+        `${FPL}/leagues-classic/${leagueId}/standings/` +
+        `?page_new_entries=1&page_standings=1&phase=1`
       );
+
 
     const standingsRows =
       standings?.standings?.results ||
       [];
 
+
     const newEntryRows =
       standings?.new_entries?.results ||
       [];
 
-    /*
-      ------------------------------------------------
-      3. NORMALIZE LEAGUE MEMBERS
-      ------------------------------------------------
-
-      Before GW1:
-      managers may appear under new_entries.
-
-      After GW1:
-      managers normally appear under standings.results.
-    */
 
     let rows = [];
+
+
+    /*
+      Normal season standings
+    */
 
     if (
       standingsRows.length > 0
     ) {
       rows =
         standingsRows.map(
-          (row) => ({
+          row => ({
             rank:
               row.rank ?? null,
 
@@ -223,7 +207,13 @@ export default async function handler(req, res) {
               'standings'
           })
         );
-    } else if (
+    }
+
+    /*
+      Pre-season/new entries
+    */
+
+    else if (
       newEntryRows.length > 0
     ) {
       rows =
@@ -238,9 +228,6 @@ export default async function handler(req, res) {
             entry:
               row.entry,
 
-            /*
-              FULL NAME FIX
-            */
             player_name:
               fullManagerName(row),
 
@@ -261,21 +248,23 @@ export default async function handler(req, res) {
         );
     }
 
+
     /*
-      ------------------------------------------------
-      4. GET GAMEWEEK HISTORY FOR EACH MANAGER
-      ------------------------------------------------
+      --------------------------------
+      MANAGER DETAILS
+      --------------------------------
     */
 
     const detailed =
       await Promise.all(
         rows.map(
-          async (row) => {
+          async row => {
             let gameweekPoints =
               row.event_total ?? 0;
 
             let seasonPoints =
               row.total ?? 0;
+
 
             try {
               const history =
@@ -283,22 +272,15 @@ export default async function handler(req, res) {
                   `${FPL}/entry/${row.entry}/history/`
                 );
 
+
               const current =
                 history.current?.find(
-                  (x) =>
-                    x.event === gw
+                  item =>
+                    item.event === gw
                 );
 
+
               if (current) {
-                /*
-                  IMPORTANT:
-
-                  current.points is the manager's
-                  final/current GW total including
-                  FPL scoring adjustments returned
-                  by the API.
-                */
-
                 gameweekPoints =
                   current.points ??
                   gameweekPoints;
@@ -307,17 +289,16 @@ export default async function handler(req, res) {
                   current.total_points ??
                   seasonPoints;
               }
+
             } catch (error) {
               /*
-                This can happen before GW1,
-                because managers may not have
-                Gameweek history yet.
+                Expected before GW1
               */
-
               console.log(
-                `No history available for entry ${row.entry}`
+                `No history for entry ${row.entry}`
               );
             }
+
 
             return {
               rank:
@@ -332,16 +313,10 @@ export default async function handler(req, res) {
               entryId:
                 row.entry,
 
-              /*
-                FULL MANAGER NAME
-              */
               manager:
                 row.player_name ||
                 'Manager',
 
-              /*
-                TEAM NAME
-              */
               team:
                 row.entry_name ||
                 'FPL Team',
@@ -364,14 +339,11 @@ export default async function handler(req, res) {
         )
       );
 
+
     /*
-      ------------------------------------------------
-      5. WEEKLY TABLE
-      ------------------------------------------------
-
-      This is separate from the overall FPL league.
-
-      Highest Gameweek points wins.
+      --------------------------------
+      WEEKLY
+      --------------------------------
     */
 
     const weekly =
@@ -384,10 +356,11 @@ export default async function handler(req, res) {
           )
       );
 
+
     /*
-      ------------------------------------------------
-      6. OVERALL TABLE
-      ------------------------------------------------
+      --------------------------------
+      OVERALL
+      --------------------------------
     */
 
     const overall =
@@ -400,14 +373,16 @@ export default async function handler(req, res) {
           )
       );
 
+
     /*
-      ------------------------------------------------
-      7. GAMEWEEK STATUS
-      ------------------------------------------------
+      --------------------------------
+      STATUS / AWARDS
+      --------------------------------
     */
 
     const status =
       eventStatus(event);
+
 
     const gameweekStarted =
       new Date() >=
@@ -415,166 +390,155 @@ export default async function handler(req, res) {
         event.deadline_time
       );
 
-    /*
-      ------------------------------------------------
-      8. WEEKLY AWARDS
-      ------------------------------------------------
-    */
 
     let provisionalLeader = [];
     let winners = [];
     let fraudOfTheWeek = [];
 
-    /*
-      Do NOT declare a leader before
-      the Gameweek deadline.
-    */
 
     if (
       gameweekStarted &&
       weekly.length > 0
     ) {
       const highestScore =
-        weekly[0]
-          .gameweekPoints;
+        weekly[0].gameweekPoints;
+
 
       provisionalLeader =
         weekly.filter(
-          (manager) =>
+          manager =>
             manager.gameweekPoints ===
             highestScore
         );
 
-      /*
-        Only officially declare the winner
-        after FPL data_checked becomes true.
-      */
 
       if (status.final) {
         winners =
           provisionalLeader;
+
 
         const lowestScore =
           weekly[
             weekly.length - 1
           ].gameweekPoints;
 
+
         fraudOfTheWeek =
           weekly.filter(
-            (manager) =>
+            manager =>
               manager.gameweekPoints ===
               lowestScore
           );
       }
     }
 
-    /*
-      ------------------------------------------------
-      9. CONNECTION INFORMATION
-      ------------------------------------------------
-    */
-
-    const connection = {
-      connected: true,
-
-      leagueId,
-
-      managerCount:
-        detailed.length,
-
-      source:
-        standingsRows.length > 0
-          ? 'FPL standings'
-          : newEntryRows.length >
-              0
-            ? 'FPL new entries'
-            : 'FPL league found but no managers returned'
-    };
 
     /*
-      ------------------------------------------------
-      10. SEND DATA TO APP
-      ------------------------------------------------
+      --------------------------------
+      RESPONSE
+      --------------------------------
     */
 
-    return res
-      .status(200)
-      .json({
-        connection,
+    return res.status(200).json({
 
-        league: {
-          id: leagueId,
+      connection: {
+        connected: true,
 
-          name:
-            standings?.league
-              ?.name ||
-            'Ball Knowledge Only'
-        },
+        leagueId,
 
-        gameweek: {
-          id: gw,
+        managerCount:
+          detailed.length,
 
-          name:
-            event.name,
+        source:
+          standingsRows.length > 0
+            ? 'FPL standings'
+            : newEntryRows.length > 0
+              ? 'FPL new entries'
+              : 'No managers returned'
+      },
 
-          deadline:
-            event.deadline_time,
 
-          finished:
-            !!event.finished,
+      league: {
+        id:
+          leagueId,
 
-          dataChecked:
-            !!event.data_checked,
+        name:
+          standings?.league?.name ||
+          'Ball Knowledge Only'
+      },
 
-          status
-        },
 
-        updatedAt:
-          new Date().toISOString(),
+      gameweek: {
+        id:
+          gw,
 
-        /*
-          This is useful while testing
-          because you can directly inspect
-          every league member.
-        */
+        name:
+          event.name,
 
-        managers:
-          detailed,
+        deadline:
+          event.deadline_time,
 
-        weekly,
+        finished:
+          !!event.finished,
 
-        overall,
+        dataChecked:
+          !!event.data_checked,
 
-        awards: {
-          winners,
+        status
+      },
 
-          managerOfTheWeek:
-            status.final
-              ? winners
-              : [],
 
-          provisionalLeader,
+      updatedAt:
+        new Date().toISOString(),
 
-          fraudOfTheWeek
-        }
-      });
+
+      /*
+        CRITICAL FOR ADMIN PAGE
+      */
+
+      managers:
+        detailed,
+
+
+      weekly,
+
+      overall,
+
+
+      awards: {
+        winners,
+
+        managerOfTheWeek:
+          status.final
+            ? winners
+            : [],
+
+        provisionalLeader,
+
+        fraudOfTheWeek
+      }
+
+    });
+
   } catch (error) {
     console.error(
       'Dashboard error:',
       error
     );
 
-    return res
-      .status(502)
-      .json({
-        connection: {
-          connected: false,
-          leagueId
-        },
 
-        error:
-          error.message ||
-          'Unable to connect to FPL.'
-      });
+    return res.status(502).json({
+
+      connection: {
+        connected: false,
+
+        leagueId
+      },
+
+      error:
+        error.message ||
+        'Unable to connect to FPL.'
+
+    });
   }
 }
