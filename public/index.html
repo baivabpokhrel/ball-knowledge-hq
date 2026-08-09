@@ -26,12 +26,9 @@
 
 </head>
 
-
 <body>
 
   <main class="app">
-
-    <!-- HEADER -->
 
     <header class="topbar">
 
@@ -54,12 +51,10 @@
 
       </div>
 
-
       <button
         id="refresh"
         class="icon-button"
         type="button"
-        aria-label="Refresh data"
       >
         ↻
       </button>
@@ -67,44 +62,39 @@
     </header>
 
 
-    <!-- TOP NAV -->
-
     <nav class="main-nav">
 
       <button
-        type="button"
         class="nav-button active"
         data-tab="gameweek"
+        type="button"
       >
         <span>⚽</span>
         GW
       </button>
 
-
       <button
-        type="button"
         class="nav-button"
         data-tab="payments"
+        type="button"
       >
         <span>💰</span>
         Payments
       </button>
 
-
       <button
-        type="button"
         class="nav-button"
         data-tab="predictions"
+        type="button"
       >
         <span>🔮</span>
         Predict
       </button>
 
-
       <button
-        type="button"
         class="nav-button"
         data-tab="overall"
+        type="button"
       >
         <span>🏆</span>
         Overall
@@ -113,7 +103,7 @@
     </nav>
 
 
-    <!-- GAMEWEEK -->
+    <!-- CURRENT GW -->
 
     <section
       id="gameweek"
@@ -122,31 +112,21 @@
 
       <section class="status-card">
 
-        <div class="status-top">
+        <span
+          id="statusCode"
+          class="status-pill"
+        >
+          —
+        </span>
 
-          <div>
+        <h2>
+          Gameweek
+          <span id="gw">—</span>
+        </h2>
 
-            <span
-              id="statusCode"
-              class="status-pill"
-            >
-              —
-            </span>
-
-            <h2>
-              Gameweek
-              <span id="gw">
-                —
-              </span>
-            </h2>
-
-            <p id="statusText">
-              Loading…
-            </p>
-
-          </div>
-
-        </div>
+        <p id="statusText">
+          Loading…
+        </p>
 
       </section>
 
@@ -176,79 +156,34 @@
       </section>
 
 
-      <section>
+      <div class="section-heading">
 
-        <div class="section-heading">
+        <h3>
+          Gameweek Standings
+        </h3>
 
-          <div>
+        <p>
+          Current Gameweek points only.
+        </p>
 
-            <h3>
-              Gameweek Standings
-            </h3>
-
-            <p>
-              Points for this Gameweek only.
-            </p>
-
-          </div>
-
-        </div>
+      </div>
 
 
-        <div
-          id="weeklyList"
-          class="standings-list"
-        >
-          <div class="empty">
-            Loading standings…
-          </div>
-        </div>
-
-      </section>
+      <div
+        id="weeklyList"
+        class="standings-list"
+      ></div>
 
     </section>
 
 
-    <!-- PAYMENTS -->
+    <!-- PAYMENTS ALL GW -->
 
     <section
       id="payments"
       class="panel"
       hidden
     >
-
-      <div class="gw-heading">
-
-        <div>
-
-          <span class="label">
-            CURRENT GAMEWEEK
-          </span>
-
-          <h2>
-            GW
-            <span id="paymentGw">
-              —
-            </span>
-          </h2>
-
-        </div>
-
-
-        <div class="fee-badge">
-
-          $<span id="fee">—</span>
-
-          <small>
-            ENTRY
-          </small>
-
-        </div>
-
-      </div>
-
-
-      <!-- ZELLE -->
 
       <section class="zelle-card">
 
@@ -259,13 +194,13 @@
         <div class="zelle-line">
 
           <strong id="zelleValue">
-            Loading…
+            —
           </strong>
 
           <button
             id="copyZelle"
-            type="button"
             class="copy-button"
+            type="button"
           >
             COPY
           </button>
@@ -273,110 +208,43 @@
         </div>
 
         <p class="zelle-help">
-          Include your FPL team name in the payment memo.
+          Include your FPL team name in the memo.
         </p>
 
       </section>
 
 
-      <!-- WINNER -->
-
-      <section class="winner-card">
-
-        <div class="winner-trophy">
-          🏆
-        </div>
+      <div class="payment-history-header">
 
         <div>
 
-          <small id="winnerLabel">
-            GW WINNER
-          </small>
+          <h2>
+            Gameweek Payments
+          </h2>
 
-          <h3 id="winnerTeam">
-            To be decided
-          </h3>
-
-          <p id="winnerManager">
-            Winner will appear here.
+          <p>
+            Current and previous Gameweeks.
           </p>
 
         </div>
 
-      </section>
+        <span class="fee-chip">
+          $<span id="fee">—</span>/GW
+        </span>
+
+      </div>
 
 
-      <!-- PAYMENT SUMMARY -->
+      <div
+        id="paymentHistory"
+        class="payment-history"
+      >
 
-      <section class="payment-summary">
-
-        <div class="summary-top">
-
-          <div>
-
-            <strong id="paidCount">
-              0 / 0
-            </strong>
-
-            <small>
-              PAID
-            </small>
-
-          </div>
-
-
-          <span id="remainingCount">
-            —
-          </span>
-
+        <div class="empty">
+          Loading payments…
         </div>
 
-
-        <div class="progress">
-
-          <div
-            id="paymentProgress"
-            class="progress-fill"
-          ></div>
-
-        </div>
-
-      </section>
-
-
-      <!-- PAYMENT LIST -->
-
-      <section>
-
-        <div class="section-heading">
-
-          <div>
-
-            <h3>
-              Payment Status
-            </h3>
-
-            <p>
-              Everyone can see the current status.
-            </p>
-
-          </div>
-
-        </div>
-
-
-        <div
-          id="paymentList"
-          class="manager-list"
-        >
-
-          <div class="empty">
-            Loading managers…
-          </div>
-
-        </div>
-
-      </section>
+      </div>
 
     </section>
 
@@ -396,16 +264,12 @@
         </span>
 
         <h2>
-          Live GW Win Prediction
+          Live Win Prediction
         </h2>
 
         <p>
-          After the Gameweek starts, this page will estimate each manager's chance of winning based on live points, remaining players, captaincy and remaining matches.
+          Coming next.
         </p>
-
-        <div class="coming-soon">
-          Prediction Engine — Next Build
-        </div>
 
       </div>
 
@@ -422,31 +286,20 @@
 
       <div class="section-heading">
 
-        <div>
+        <h2>
+          Overall League
+        </h2>
 
-          <h2>
-            Overall League
-          </h2>
-
-          <p>
-            Full-season standings.
-          </p>
-
-        </div>
+        <p>
+          Full-season standings.
+        </p>
 
       </div>
-
 
       <div
         id="overallList"
         class="standings-list"
-      >
-
-        <div class="empty">
-          Loading overall table…
-        </div>
-
-      </div>
+      ></div>
 
     </section>
 
