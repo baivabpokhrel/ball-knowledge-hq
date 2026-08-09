@@ -1404,3 +1404,661 @@ p {
 
   font-size: 9px;
 }
+/* =====================================================
+   ADMIN PANEL
+   ===================================================== */
+
+.small-link-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 41px;
+
+  padding: 0 13px;
+
+  border-radius: 11px;
+
+  background: var(--gold);
+
+  color: #171108;
+
+  text-decoration: none;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  flex-shrink: 0;
+}
+
+
+/* ADMIN CARDS */
+
+.admin-login-card,
+.admin-controls-card,
+.admin-edit-card {
+  margin-bottom: 13px;
+
+  padding: 16px;
+
+  border: 1px solid var(--border);
+  border-radius: 17px;
+
+  background: var(--surface);
+}
+
+
+/* FORM LABELS */
+
+.form-label {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: .05em;
+}
+
+
+/* INPUT / SELECT */
+
+.form-input {
+  display: block;
+
+  width: 100%;
+  min-height: 48px;
+
+  padding: 0 13px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  outline: none;
+
+  background: var(--surface-2);
+
+  color: var(--text);
+
+  font-size: 16px;
+
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+
+
+.form-input:focus {
+  border-color: var(--gold);
+}
+
+
+/* HELPER TEXT */
+
+.admin-helper {
+  margin: 9px 0 0;
+
+  color: var(--gold);
+
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+
+/* ADMIN MESSAGE */
+
+.admin-message {
+  min-height: 20px;
+
+  margin: 3px 0 12px;
+
+  color: var(--muted);
+
+  text-align: center;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+.admin-message.success {
+  color: var(--green);
+}
+
+
+.admin-message.error {
+  color: var(--red);
+}
+
+
+.admin-message.warning {
+  color: var(--gold);
+}
+
+
+/* EDITING HEADER */
+
+.admin-edit-header {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 18px;
+}
+
+
+.admin-edit-header h2 {
+  margin: 0;
+
+  font-size: 26px;
+}
+
+
+/* PAID COUNT */
+
+.admin-count {
+  text-align: right;
+
+  flex-shrink: 0;
+}
+
+
+.admin-count strong {
+  display: block;
+
+  font-size: 22px;
+  font-weight: 900;
+}
+
+
+.admin-count small {
+  display: block;
+
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 8px;
+  font-weight: 900;
+}
+
+
+/* WINNER SELECT */
+
+.winner-select-section {
+  margin-bottom: 18px;
+
+  padding-bottom: 17px;
+
+  border-bottom: 1px solid var(--border);
+}
+
+
+/* MANAGER LIST */
+
+.admin-manager-list {
+  display: grid;
+
+  gap: 8px;
+}
+
+
+/* EACH MANAGER */
+
+.admin-manager-row {
+  display: flex;
+
+  align-items: center;
+
+  width: 100%;
+  min-height: 66px;
+
+  padding: 11px 12px;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: var(--surface-2);
+
+  cursor: pointer;
+
+  transition:
+    border-color .15s ease,
+    background .15s ease;
+}
+
+
+/* CHECKBOX */
+
+.admin-manager-row > input[type="checkbox"] {
+  width: 21px;
+  height: 21px;
+
+  margin: 0 11px 0 0;
+
+  flex-shrink: 0;
+
+  accent-color: var(--green);
+}
+
+
+/* PAID MANAGER */
+
+.admin-manager-row.paid-row {
+  border-color: #245d41;
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--green-soft),
+      var(--surface-2)
+    );
+}
+
+
+/* WINNER */
+
+.admin-manager-row.winner-row {
+  border-color: #705c29;
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--gold-soft),
+      var(--surface-2)
+    );
+}
+
+
+/* WINNER + PAID */
+
+.admin-manager-row.paid-row.winner-row {
+  border-color: var(--gold);
+}
+
+
+/* MANAGER NAME */
+
+.admin-manager-row .manager-info {
+  min-width: 0;
+
+  flex: 1;
+}
+
+
+.admin-manager-row .manager-info strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 14px;
+}
+
+
+.admin-manager-row .manager-info small {
+  display: block;
+
+  margin-top: 3px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+
+/* RIGHT STATUS */
+
+.admin-row-state {
+  margin-left: 9px;
+
+  flex-shrink: 0;
+}
+
+
+/* STATUS CHIPS */
+
+.paid-chip,
+.unpaid-chip,
+.winner-chip {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 25px;
+
+  padding: 4px 7px;
+
+  border-radius: 7px;
+
+  white-space: nowrap;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: .02em;
+}
+
+
+.paid-chip {
+  background: var(--green-soft);
+
+  color: var(--green);
+}
+
+
+.unpaid-chip {
+  background: var(--red-soft);
+
+  color: var(--red);
+}
+
+
+.winner-chip {
+  background: var(--gold-soft);
+
+  color: var(--gold);
+}
+
+
+/* =====================================================
+   SAVE SECTION
+   ===================================================== */
+
+.admin-save-area {
+  position: sticky;
+
+  bottom:
+    max(
+      8px,
+      env(safe-area-inset-bottom)
+    );
+
+  z-index: 50;
+
+  display: grid;
+
+  grid-template-columns: .9fr 1.3fr;
+
+  gap: 8px;
+
+  margin-top: 18px;
+
+  padding:
+    18px 0 5px;
+
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      var(--surface) 28%,
+      var(--surface) 100%
+    );
+}
+
+
+/* BUTTONS */
+
+.primary-button,
+.secondary-button {
+  min-height: 48px;
+
+  padding: 0 11px;
+
+  border-radius: 12px;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+.primary-button {
+  border: 0;
+
+  background: var(--gold);
+
+  color: #171108;
+}
+
+
+.secondary-button {
+  border: 1px solid var(--border);
+
+  background: var(--surface-2);
+
+  color: var(--text);
+}
+
+
+.primary-button:active,
+.secondary-button:active {
+  transform: scale(.98);
+}
+
+
+.primary-button:disabled {
+  opacity: .55;
+}
+
+
+/* =====================================================
+   ADMIN GAMEWEEK HISTORY
+   ===================================================== */
+
+.admin-history-section {
+  margin-top: 27px;
+
+  padding-top: 4px;
+}
+
+
+.admin-history-section h3 {
+  margin-bottom: 4px;
+
+  font-size: 18px;
+}
+
+
+.admin-history-section > p {
+  margin-bottom: 12px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+
+.admin-gw-history {
+  display: grid;
+
+  gap: 8px;
+}
+
+
+/* GW HISTORY ROW */
+
+.history-gw-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  width: 100%;
+  min-height: 67px;
+
+  padding: 11px 13px;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: var(--surface);
+
+  color: var(--text);
+
+  text-align: left;
+}
+
+
+.history-gw-row:active {
+  transform: scale(.99);
+}
+
+
+.history-gw-row > div:first-child {
+  min-width: 0;
+
+  flex: 1;
+}
+
+
+.history-gw-row strong {
+  font-size: 14px;
+}
+
+
+.history-gw-row small {
+  display: block;
+
+  margin-top: 4px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+
+  font-size: 9px;
+}
+
+
+/* HISTORY RIGHT SIDE */
+
+.history-status {
+  flex-shrink: 0;
+
+  text-align: right;
+}
+
+
+.history-status strong {
+  display: block;
+
+  font-size: 15px;
+}
+
+
+.history-status small {
+  display: block;
+
+  margin-top: 3px;
+
+  color: var(--muted);
+
+  font-size: 8px;
+  font-weight: 900;
+}
+
+
+/* CURRENT GW CHIP */
+
+.current-chip {
+  display: inline-flex;
+
+  align-items: center;
+
+  margin-left: 5px;
+
+  padding: 3px 6px;
+
+  border-radius: 6px;
+
+  background: var(--gold-soft);
+
+  color: var(--gold);
+
+  font-size: 7px;
+  font-weight: 900;
+
+  vertical-align: middle;
+}
+
+
+/* =====================================================
+   ADMIN MOBILE FIXES
+   ===================================================== */
+
+@media (max-width: 420px) {
+
+  .admin-login-card,
+  .admin-controls-card,
+  .admin-edit-card {
+    padding: 14px;
+  }
+
+
+  .admin-edit-header {
+    margin-bottom: 15px;
+  }
+
+
+  .admin-manager-row {
+    min-height: 64px;
+
+    padding: 10px;
+  }
+
+
+  .admin-manager-row > input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+
+    margin-right: 9px;
+  }
+
+
+  .admin-row-state {
+    margin-left: 6px;
+  }
+
+
+  .paid-chip,
+  .unpaid-chip,
+  .winner-chip {
+    padding: 4px 6px;
+
+    font-size: 7px;
+  }
+
+
+  .admin-save-area {
+    grid-template-columns: 1fr 1.35fr;
+  }
+
+
+  .primary-button,
+  .secondary-button {
+    font-size: 10px;
+  }
+
+
+  .history-gw-row {
+    padding: 10px 11px;
+  }
+}
