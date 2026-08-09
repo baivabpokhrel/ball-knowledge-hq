@@ -65,32 +65,15 @@ export default async function handler(req, res) {
     const now =
       new Date().toISOString();
 
-    /*
-      Clear previous winner for GW.
-    */
-
-    await supabaseRequest(
-      `payments` +
-      `?gameweek=eq.${gw}` +
-      `&winner=eq.true`,
-      {
-        method: 'PATCH',
-
-        headers: {
-          Prefer:
-            'return=minimal'
-        },
-
-        body:
-          JSON.stringify({
-            winner: false,
-            updated_at: now
-          })
-      }
-    );
+    const winnerId =
+      winnerEntryId === null ||
+      winnerEntryId === undefined ||
+      winnerEntryId === ''
+        ? null
+        : Number(winnerEntryId);
 
     /*
-      Build complete GW records.
+      Build authoritative GW snapshot.
     */
 
     const records =
@@ -98,17 +81,21 @@ export default async function handler(req, res) {
         const entryId =
           Number(item.entryId);
 
+        if (
+          !Number.isInteger(entryId) ||
+          entryId <= 0
+        ) {
+          throw new Error(
+            `Invalid entry ID: ${item.entryId}`
+          );
+        }
+
         const paid =
           item.paid === true;
 
-        const isWinner =
-          winnerEntryId !== null &&
-          winnerEntryId !== undefined &&
-          Number(winnerEntryId) ===
-            entryId;
-
         return {
-          gameweek: gw,
+          gameweek:
+            gw,
 
           entry_id:
             entryId,
@@ -116,7 +103,8 @@ export default async function handler(req, res) {
           paid,
 
           winner:
-            isWinner,
+            winnerId !== null &&
+            entryId === winnerId,
 
           paid_at:
             paid
@@ -128,51 +116,120 @@ export default async function handler(req, res) {
         };
       });
 
+    /*
+      Prevent accidental duplicate entry IDs.
+    */
+
+    const uniqueIds =
+      new Set(
+        records.map(
+          row =>
+            row.entry_id
+        )
+      );
+
     if (
-      records.some(
-        item =>
-          !Number.isInteger(
-            item.entry_id
-          ) ||
-          item.entry_id <= 0
-      )
+      uniqueIds.size !==
+      records.length
     ) {
-      return res.status(400).json({
-        error:
-          'Invalid manager entry ID'
-      });
+      throw new Error(
+        'Duplicate managers found in save request'
+      );
     }
 
     /*
-      Upsert every manager in one request.
+      Save complete snapshot.
     */
 
-    const result =
+    await supabaseRequest(
+      'payments?on_conflict=gameweek,entry_id',
+      {
+        method: 'POST',
+
+        headers: {
+          Prefer:
+            'resolution=merge-duplicates,return=representation'
+        },
+
+        body:
+          JSON.stringify(records)
+      }
+    );
+
+    /*
+      IMPORTANT:
+      Read directly back from Supabase.
+    */
+
+    const savedRows =
       await supabaseRequest(
-        `payments` +
-        `?on_conflict=gameweek,entry_id`,
-        {
-          method: 'POST',
-
-          headers: {
-            Prefer:
-              'resolution=merge-duplicates,return=representation'
-          },
-
-          body:
-            JSON.stringify(records)
-        }
+        'payments' +
+        `?gameweek=eq.${gw}` +
+        '&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at' +
+        '&order=entry_id.asc'
       );
+
+    const saved =
+      Array.isArray(savedRows)
+        ? savedRows
+        : [];
+
+    /*
+      Verify every submitted manager.
+    */
+
+    for (
+      const expected of records
+    ) {
+      const actual =
+        saved.find(
+          row =>
+            Number(row.entry_id) ===
+            Number(expected.entry_id)
+        );
+
+      if (!actual) {
+        throw new Error(
+          `Save verification failed for entry ${expected.entry_id}`
+        );
+      }
+
+      if (
+        Boolean(actual.paid) !==
+        Boolean(expected.paid)
+      ) {
+        throw new Error(
+          `Payment verification failed for entry ${expected.entry_id}`
+        );
+      }
+
+      if (
+        Boolean(actual.winner) !==
+        Boolean(expected.winner)
+      ) {
+        throw new Error(
+          `Winner verification failed for entry ${expected.entry_id}`
+        );
+      }
+    }
 
     return res.status(200).json({
       success: true,
 
-      gameweek: gw,
+      gameweek:
+        gw,
+
+      payments:
+        saved,
 
       saved:
-        Array.isArray(result)
-          ? result.length
-          : records.length
+        saved.length,
+
+      verified:
+        true,
+
+      savedAt:
+        new Date().toISOString()
     });
 
   } catch (error) {
@@ -182,6 +239,8 @@ export default async function handler(req, res) {
     );
 
     return res.status(500).json({
+      success: false,
+
       error:
         error.message ||
         'Unable to save Gameweek'
