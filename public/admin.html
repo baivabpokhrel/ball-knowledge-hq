@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#080a0d"
+  >
+
+  <title>
+    Ball Knowledge Admin
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
+
+</head>
+
+<body>
+
+  <main class="app">
+
+    <header class="topbar">
+
+      <div>
+
+        <p class="eyebrow">
+          BALL KNOWLEDGE HQ
+        </p>
+
+        <h1>
+          Payment Admin
+        </h1>
+
+        <p class="connection">
+          Private control panel
+        </p>
+
+      </div>
+
+    </header>
+
+
+    <section class="payment-summary">
+
+      <label class="label">
+        ADMIN PASSWORD
+      </label>
+
+      <input
+        id="password"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Enter admin password"
+        style="
+          width:100%;
+          min-height:48px;
+          padding:0 14px;
+          margin-top:7px;
+          border:1px solid #252a31;
+          border-radius:13px;
+          background:#171b21;
+          color:#f4f4f5;
+          font-size:16px;
+        "
+      >
+
+    </section>
+
+
+    <section class="payment-summary">
+
+      <div class="summary-top">
+
+        <div>
+          <span class="label">
+            GAMEWEEK
+          </span>
+
+          <strong>
+            GW
+            <span id="adminGw">
+              —
+            </span>
+          </strong>
+        </div>
+
+        <button
+          id="reloadAdmin"
+          type="button"
+          class="copy-button"
+        >
+          REFRESH
+        </button>
+
+      </div>
+
+
+      <div
+        id="adminTotals"
+      >
+        Loading…
+      </div>
+
+    </section>
+
+
+    <section>
+
+      <div class="section-heading">
+
+        <div>
+
+          <h3>
+            Managers
+          </h3>
+
+          <p>
+            Tap a manager to mark paid or unpaid.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="adminList"
+        class="manager-list"
+      >
+
+        <div class="empty">
+          Loading…
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <footer class="last-updated">
+
+      <a
+        href="/"
+        style="color:#d6ad55;"
+      >
+        ← Back to public dashboard
+      </a>
+
+    </footer>
+
+  </main>
+
+
+  <script src="/admin.js"></script>
+
+</body>
+</html>
