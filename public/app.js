@@ -1942,7 +1942,86 @@ $('shareReminderImage')
     }
   );
 
+async function refreshPaymentsOnly() {
 
+  if (!dashboardData) {
+    return;
+  }
+
+
+  const currentGw =
+    Number(
+      dashboardData
+        .gameweek
+        ?.id ||
+      1
+    );
+
+
+  try {
+
+    const response =
+      await fetch(
+        `/api/payments?from=1&to=${currentGw}&_=${Date.now()}`,
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+
+          headers: {
+            'Cache-Control':
+              'no-cache'
+          }
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Unable to refresh payments'
+      );
+    }
+
+
+    allPayments =
+      Array.isArray(
+        data.payments
+      )
+        ? data.payments
+        : [];
+
+
+    paymentMeta =
+      data;
+
+
+    /*
+      Immediately repaint payment screen.
+    */
+
+    renderPaymentHistory();
+
+
+    console.log(
+      'Payments refreshed:',
+      new Date(),
+      data.requestId
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      'Payment refresh failed:',
+      error
+    );
+  }
+}
 /*
   ====================================
   NAVIGATION
