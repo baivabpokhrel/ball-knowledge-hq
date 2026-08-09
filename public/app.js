@@ -1,9 +1,14 @@
 const $ = (id) =>
   document.getElementById(id);
 
-const LEAGUE_ID = '92378';
 
-const GW_ENTRY_FEE = 20;
+const LEAGUE_ID =
+  '92378';
+
+
+const GW_ENTRY_FEE =
+  20;
+
 
 const VALID_TABS = [
   'gameweek',
@@ -13,15 +18,49 @@ const VALID_TABS = [
 ];
 
 
-let dashboardData = null;
+/*
+  Current league/dashboard data.
 
-let allPayments = [];
+  IMPORTANT:
+  This always represents the CURRENT GW
+  and is used for:
+  - manager roster
+  - current GW number
+  - overall standings
+  - payments
+*/
 
-let allGwSettings = [];
+let dashboardData =
+  null;
 
-let paymentMeta = null;
 
-let activeShareGw = null;
+/*
+  This represents whichever GW is currently
+  being viewed inside the GW tab.
+*/
+
+let gwViewData =
+  null;
+
+
+let selectedGw =
+  1;
+
+
+let allPayments =
+  [];
+
+
+let allGwSettings =
+  [];
+
+
+let paymentMeta =
+  null;
+
+
+let activeShareGw =
+  null;
 
 
 /* =====================================================
@@ -29,271 +68,179 @@ let activeShareGw = null;
 ===================================================== */
 
 function escapeHtml(value) {
+
   return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+
 }
 
 
 function getCurrentGw() {
+
   return Number(
-    dashboardData?.gameweek?.id ||
+    dashboardData
+      ?.gameweek
+      ?.id ||
     1
   );
+
 }
 
 
 /* =====================================================
-   URL / SHAREABLE TAB HELPERS
+   URL HELPERS
 ===================================================== */
 
 function getRequestedTab() {
+
   const params =
     new URLSearchParams(
       window.location.search
     );
+
 
   const tab =
     params.get('tab');
 
+
   return VALID_TABS.includes(tab)
     ? tab
     : 'gameweek';
+
 }
 
 
-function getRequestedPaymentGw() {
+function getRequestedGw() {
+
   const params =
     new URLSearchParams(
       window.location.search
     );
+
 
   const value =
     Number(
       params.get('gw')
     );
 
+
   if (
     !Number.isInteger(value) ||
     value < 1 ||
     value > 38
   ) {
+
     return null;
+
   }
 
+
   return value;
+
 }
 
 
 function updateUrl(
   tab,
-  gw = null
+  gw = null,
+  push = true
 ) {
+
   const url =
     new URL(
       window.location.href
     );
+
 
   url.searchParams.set(
     'tab',
     tab
   );
 
+
   /*
-    GW only belongs to the
-    Payments screen.
+    Both the Gameweek tab and Payments tab
+    can have a specific GW.
   */
 
   if (
-    tab === 'payments' &&
+    (
+      tab === 'gameweek' ||
+      tab === 'payments'
+    ) &&
     gw
   ) {
+
     url.searchParams.set(
       'gw',
       gw
     );
+
   } else {
+
     url.searchParams.delete(
       'gw'
     );
+
   }
 
-  window.history.pushState(
-    {
-      tab,
-      gw
-    },
-    '',
-    url
-  );
-}
+
+  const state = {
+    tab,
+    gw
+  };
 
 
-function openRequestedPaymentGw(
-  gw,
-  scroll = true
-) {
-  if (!gw) {
-    return;
-  }
+  if (push) {
 
-  const card =
-    document.querySelector(
-      `[data-payment-gw="${gw}"]`
+    window.history.pushState(
+      state,
+      '',
+      url
     );
 
-  if (!card) {
-    return;
-  }
+  } else {
 
-  /*
-    Close all other GWs.
-  */
-
-  document
-    .querySelectorAll(
-      '.payment-gw-card'
-    )
-    .forEach(
-      item => {
-        item.open =
-          item === card;
-      }
+    window.history.replaceState(
+      state,
+      '',
+      url
     );
 
-  card.open = true;
-
-  if (scroll) {
-    setTimeout(
-      () => {
-        card.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      },
-      100
-    );
-  }
-}
-
-
-async function openTab(
-  tab,
-  options = {}
-) {
-  if (
-    !VALID_TABS.includes(tab)
-  ) {
-    tab = 'gameweek';
   }
 
-  const {
-    updateHistory = true,
-    gw = null,
-    scroll = true
-  } = options;
-
-
-  /*
-    Nav buttons
-  */
-
-  document
-    .querySelectorAll(
-      '[data-tab]'
-    )
-    .forEach(
-      button => {
-        button.classList.toggle(
-          'active',
-          button.dataset.tab === tab
-        );
-      }
-    );
-
-
-  /*
-    Panels
-  */
-
-  document
-    .querySelectorAll(
-      '.panel'
-    )
-    .forEach(
-      panel => {
-        panel.hidden =
-          panel.id !== tab;
-      }
-    );
-
-
-  /*
-    Always fetch fresh payment data
-    when Payments is opened.
-  */
-
-  if (
-    tab === 'payments' &&
-    dashboardData
-  ) {
-    await refreshPaymentsOnly();
-
-    if (gw) {
-      openRequestedPaymentGw(
-        gw,
-        scroll
-      );
-    }
-  }
-
-
-  if (updateHistory) {
-    updateUrl(
-      tab,
-      tab === 'payments'
-        ? gw
-        : null
-    );
-  }
-
-
-  if (
-    scroll &&
-    !(
-      tab === 'payments' &&
-      gw
-    )
-  ) {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  }
 }
 
 
 /* =====================================================
-   PAYMENT DATABASE HELPERS
+   PAYMENT HELPERS
 ===================================================== */
 
 function paymentFor(
   gw,
   entryId
 ) {
+
   return (
     allPayments.find(
       item =>
-        Number(item.gameweek) ===
-          Number(gw) &&
-        Number(item.entry_id) ===
-          Number(entryId)
+        Number(
+          item.gameweek
+        ) ===
+        Number(gw)
+        &&
+        Number(
+          item.entry_id
+        ) ===
+        Number(entryId)
     ) ||
     null
   );
+
 }
 
 
@@ -301,47 +248,61 @@ function paidFor(
   gw,
   entryId
 ) {
+
   return (
     paymentFor(
       gw,
       entryId
     )?.paid === true
   );
+
 }
 
 
 function settingForGw(gw) {
+
   return (
     allGwSettings.find(
       item =>
-        Number(item.gameweek) ===
+        Number(
+          item.gameweek
+        ) ===
         Number(gw)
     ) ||
     null
   );
+
 }
 
 
 function zelleForGw(gw) {
+
   return (
     settingForGw(gw)
       ?.zelle_display ||
     ''
   );
+
 }
 
 
 function manualWinnerForGw(gw) {
+
   if (!dashboardData) {
     return null;
   }
 
+
   const row =
     allPayments.find(
       item =>
-        Number(item.gameweek) ===
-          Number(gw) &&
-        item.winner === true
+        Number(
+          item.gameweek
+        ) ===
+        Number(gw)
+        &&
+        item.winner ===
+        true
     );
 
 
@@ -361,18 +322,25 @@ function manualWinnerForGw(gw) {
   return (
     managers.find(
       manager =>
-        Number(manager.entryId) ===
-        Number(row.entry_id)
+        Number(
+          manager.entryId
+        ) ===
+        Number(
+          row.entry_id
+        )
     ) ||
     null
   );
+
 }
 
 
 function unpaidManagersForGw(gw) {
+
   if (!dashboardData) {
     return [];
   }
+
 
   const managers =
     Array.isArray(
@@ -381,6 +349,7 @@ function unpaidManagersForGw(gw) {
       ? dashboardData.managers
       : [];
 
+
   return managers.filter(
     manager =>
       !paidFor(
@@ -388,11 +357,12 @@ function unpaidManagersForGw(gw) {
         manager.entryId
       )
   );
+
 }
 
 
 /* =====================================================
-   STANDINGS
+   STANDINGS ROW
 ===================================================== */
 
 function standingsRow(
@@ -400,6 +370,7 @@ function standingsRow(
   index,
   weekly
 ) {
+
   const movement =
     manager.movement > 0
       ? `▲ ${manager.movement}`
@@ -415,6 +386,7 @@ function standingsRow(
         ${index + 1}
       </div>
 
+
       <div class="manager-info">
 
         <strong>
@@ -426,6 +398,7 @@ function standingsRow(
         </small>
 
       </div>
+
 
       <div class="points">
 
@@ -449,17 +422,20 @@ function standingsRow(
 
     </div>
   `;
+
 }
 
 
 /* =====================================================
-   MAIN DASHBOARD
+   CURRENT LEAGUE / OVERALL RENDER
 ===================================================== */
 
-function renderDashboard() {
+function renderCurrentLeagueData() {
+
   if (!dashboardData) {
     return;
   }
+
 
   const data =
     dashboardData;
@@ -473,14 +449,6 @@ function renderDashboard() {
       : [];
 
 
-  const weekly =
-    Array.isArray(
-      data.weekly
-    )
-      ? data.weekly
-      : [];
-
-
   const overall =
     Array.isArray(
       data.overall
@@ -490,104 +458,381 @@ function renderDashboard() {
 
 
   if ($('league')) {
-    $('league').textContent =
-      data.league?.name ||
-      'Ball Knowledge Only';
+
+    $('league')
+      .textContent =
+        data.league?.name ||
+        'Ball Knowledge Only';
+
   }
 
 
   if ($('connectionStatus')) {
-    $('connectionStatus').textContent =
-      `● FPL CONNECTED • ${managers.length} MANAGERS`;
 
-    $('connectionStatus').className =
-      'connection connected';
-  }
+    $('connectionStatus')
+      .textContent =
+        `● FPL CONNECTED • ${managers.length} MANAGERS`;
 
 
-  if ($('gw')) {
-    $('gw').textContent =
-      data.gameweek?.id ||
-      '—';
-  }
+    $('connectionStatus')
+      .className =
+        'connection connected';
 
-
-  if ($('statusCode')) {
-    $('statusCode').textContent =
-      data.gameweek
-        ?.status
-        ?.code ||
-      '—';
-  }
-
-
-  if ($('statusText')) {
-    $('statusText').textContent =
-      data.gameweek
-        ?.status
-        ?.label ||
-      '';
-  }
-
-
-  if ($('weeklyList')) {
-    $('weeklyList').innerHTML =
-      weekly.length
-        ? weekly
-            .map(
-              (manager, index) =>
-                standingsRow(
-                  manager,
-                  index,
-                  true
-                )
-            )
-            .join('')
-        : `
-          <div class="empty">
-            No Gameweek points yet.
-          </div>
-        `;
   }
 
 
   if ($('overallList')) {
-    $('overallList').innerHTML =
-      overall.length
-        ? overall
-            .map(
-              (manager, index) =>
-                standingsRow(
-                  manager,
-                  index,
-                  false
-                )
-            )
-            .join('')
-        : `
-          <div class="empty">
-            No overall standings yet.
-          </div>
-        `;
+
+    $('overallList')
+      .innerHTML =
+        overall.length
+          ? overall
+              .map(
+                (manager, index) =>
+                  standingsRow(
+                    manager,
+                    index,
+                    false
+                  )
+              )
+              .join('')
+          : `
+            <div class="empty">
+              No overall standings yet.
+            </div>
+          `;
+
   }
 
-
-  renderAward();
 }
 
 
 /* =====================================================
-   CURRENT GW AWARD
+   BUILD PUBLIC GW DROPDOWN
 ===================================================== */
 
-function renderAward() {
+function buildPublicGwSelect() {
+
+  const select =
+    $('publicGwSelect');
+
+
+  if (
+    !select ||
+    !dashboardData
+  ) {
+    return;
+  }
+
+
+  const currentGw =
+    getCurrentGw();
+
+
+  select.innerHTML =
+    '';
+
+
+  for (
+    let gw = currentGw;
+    gw >= 1;
+    gw--
+  ) {
+
+    const option =
+      document.createElement(
+        'option'
+      );
+
+
+    option.value =
+      String(gw);
+
+
+    option.textContent =
+      gw === currentGw
+        ? `GW ${gw} — Current`
+        : `GW ${gw}`;
+
+
+    select.appendChild(
+      option
+    );
+
+  }
+
+
+  select.value =
+    String(
+      selectedGw
+    );
+
+}
+
+
+/* =====================================================
+   LOAD A SPECIFIC GW FROM FPL
+===================================================== */
+
+async function loadGameweekView(
+  gw,
+  options = {}
+) {
+
   if (!dashboardData) {
     return;
   }
 
 
+  const {
+    updateHistory = false
+  } = options;
+
+
+  const currentGw =
+    getCurrentGw();
+
+
+  /*
+    Never allow a future GW from the selector/URL.
+  */
+
+  if (
+    !Number.isInteger(gw) ||
+    gw < 1 ||
+    gw > currentGw
+  ) {
+
+    gw =
+      currentGw;
+
+  }
+
+
+  selectedGw =
+    gw;
+
+
+  if ($('publicGwSelect')) {
+
+    $('publicGwSelect')
+      .value =
+        String(gw);
+
+  }
+
+
+  if ($('weeklyList')) {
+
+    $('weeklyList')
+      .innerHTML = `
+        <div class="empty">
+          Loading GW${gw} results…
+        </div>
+      `;
+
+  }
+
+
+  try {
+
+    /*
+      If viewing the current GW,
+      we already have the data.
+    */
+
+    if (
+      gw === currentGw
+    ) {
+
+      gwViewData =
+        dashboardData;
+
+    } else {
+
+      const response =
+        await fetch(
+          `/api/dashboard?leagueId=${LEAGUE_ID}&gw=${gw}&_=${Date.now()}`,
+          {
+            cache:
+              'no-store'
+          }
+        );
+
+
+      const data =
+        await response.json();
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.error ||
+          `Unable to load GW${gw}`
+        );
+
+      }
+
+
+      gwViewData =
+        data;
+
+    }
+
+
+    renderGameweekView();
+
+
+    if (updateHistory) {
+
+      updateUrl(
+        'gameweek',
+        gw,
+        true
+      );
+
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      'GW load failed:',
+      error
+    );
+
+
+    if ($('weeklyList')) {
+
+      $('weeklyList')
+        .innerHTML = `
+          <div class="empty">
+            ${escapeHtml(error.message)}
+          </div>
+        `;
+
+    }
+
+  }
+
+}
+
+
+/* =====================================================
+   RENDER SELECTED GW
+===================================================== */
+
+function renderGameweekView() {
+
+  if (!gwViewData) {
+    return;
+  }
+
+
   const data =
-    dashboardData;
+    gwViewData;
+
+
+  const weekly =
+    Array.isArray(
+      data.weekly
+    )
+      ? data.weekly
+      : [];
+
+
+  const gw =
+    Number(
+      data.gameweek
+        ?.id ||
+      selectedGw
+  );
+
+
+  if ($('gw')) {
+
+    $('gw')
+      .textContent =
+        gw;
+
+  }
+
+
+  if ($('statusCode')) {
+
+    $('statusCode')
+      .textContent =
+        data.gameweek
+          ?.status
+          ?.code ||
+        '—';
+
+  }
+
+
+  if ($('statusText')) {
+
+    $('statusText')
+      .textContent =
+        data.gameweek
+          ?.status
+          ?.label ||
+        '';
+
+  }
+
+
+  if ($('gwStandingsSubtitle')) {
+
+    $('gwStandingsSubtitle')
+      .textContent =
+        `GW${gw} points only.`;
+
+  }
+
+
+  if ($('weeklyList')) {
+
+    $('weeklyList')
+      .innerHTML =
+        weekly.length
+          ? weekly
+              .map(
+                (manager, index) =>
+                  standingsRow(
+                    manager,
+                    index,
+                    true
+                  )
+              )
+              .join('')
+          : `
+            <div class="empty">
+              No GW${gw} points available.
+            </div>
+          `;
+
+  }
+
+
+  renderGameweekAward();
+
+}
+
+
+/* =====================================================
+   SELECTED GW AWARD
+===================================================== */
+
+function renderGameweekAward() {
+
+  if (!gwViewData) {
+    return;
+  }
+
+
+  const data =
+    gwViewData;
 
 
   const status =
@@ -595,30 +840,61 @@ function renderAward() {
       ?.status;
 
 
+  const gw =
+    data.gameweek
+      ?.id ||
+    selectedGw;
+
+
+  /*
+    Before GW starts
+  */
+
   if (
     status?.code ===
     'PRE-SEASON'
   ) {
+
     if ($('awardTitle')) {
-      $('awardTitle').textContent =
-        'Waiting for Gameweek';
+
+      $('awardTitle')
+        .textContent =
+          'Waiting for Gameweek';
+
     }
+
 
     if ($('awardText')) {
-      $('awardText').textContent =
-        'No leader yet';
+
+      $('awardText')
+        .textContent =
+          'No leader yet';
+
     }
+
 
     if ($('awardNote')) {
-      $('awardNote').textContent =
-        'Standings begin after the deadline.';
+
+      $('awardNote')
+        .textContent =
+          `GW${gw} has not started yet.`;
+
     }
 
+
     return;
+
   }
 
 
-  if (status?.final) {
+  /*
+    Final GW
+  */
+
+  if (
+    status?.final
+  ) {
+
     const winners =
       data.awards
         ?.winners ||
@@ -626,34 +902,49 @@ function renderAward() {
 
 
     if ($('awardTitle')) {
-      $('awardTitle').textContent =
-        winners.length > 1
-          ? 'Official GW Winners'
-          : 'Official GW Winner';
+
+      $('awardTitle')
+        .textContent =
+          winners.length > 1
+            ? 'Official GW Winners'
+            : 'Official GW Winner';
+
     }
 
 
     if ($('awardText')) {
-      $('awardText').textContent =
-        winners.length
-          ? winners
-              .map(
-                winner =>
-                  `${winner.team} — ${winner.gameweekPoints} pts`
-              )
-              .join(', ')
-          : '—';
+
+      $('awardText')
+        .textContent =
+          winners.length
+            ? winners
+                .map(
+                  winner =>
+                    `${winner.team} — ${winner.gameweekPoints} pts`
+                )
+                .join(', ')
+            : '—';
+
     }
 
 
     if ($('awardNote')) {
-      $('awardNote').textContent =
-        'Official after FPL checks.';
+
+      $('awardNote')
+        .textContent =
+          `Final GW${gw} result after FPL checks.`;
+
     }
 
+
     return;
+
   }
 
+
+  /*
+    Live / processing
+  */
 
   const leaders =
     data.awards
@@ -662,28 +953,38 @@ function renderAward() {
 
 
   if ($('awardTitle')) {
-    $('awardTitle').textContent =
-      'Provisional Leader';
+
+    $('awardTitle')
+      .textContent =
+        'Provisional Leader';
+
   }
 
 
   if ($('awardText')) {
-    $('awardText').textContent =
-      leaders.length
-        ? leaders
-            .map(
-              leader =>
-                `${leader.team} — ${leader.gameweekPoints} pts`
-            )
-            .join(', ')
-        : '—';
+
+    $('awardText')
+      .textContent =
+        leaders.length
+          ? leaders
+              .map(
+                leader =>
+                  `${leader.team} — ${leader.gameweekPoints} pts`
+              )
+              .join(', ')
+          : '—';
+
   }
 
 
   if ($('awardNote')) {
-    $('awardNote').textContent =
-      'Points may still change.';
+
+    $('awardNote')
+      .textContent =
+        'Points may still change after bonuses and corrections.';
+
   }
+
 }
 
 
@@ -692,6 +993,7 @@ function renderAward() {
 ===================================================== */
 
 function renderPaymentHistory() {
+
   if (
     !dashboardData ||
     !paymentMeta
@@ -701,26 +1003,11 @@ function renderPaymentHistory() {
 
 
   if ($('fee')) {
-    $('fee').textContent =
-      GW_ENTRY_FEE;
-  }
 
+    $('fee')
+      .textContent =
+        GW_ENTRY_FEE;
 
-  /*
-    Hide old global Zelle card.
-    Zelle is now per-GW.
-  */
-
-  if ($('zelleValue')) {
-    const oldZelleCard =
-      $('zelleValue').closest(
-        '.zelle-card'
-      );
-
-    if (oldZelleCard) {
-      oldZelleCard.style.display =
-        'none';
-    }
   }
 
 
@@ -736,11 +1023,18 @@ function renderPaymentHistory() {
       : [];
 
 
+  const requestedTab =
+    getRequestedTab();
+
+
   const requestedGw =
-    getRequestedPaymentGw();
+    requestedTab === 'payments'
+      ? getRequestedGw()
+      : null;
 
 
-  const cards = [];
+  const cards =
+    [];
 
 
   for (
@@ -750,7 +1044,9 @@ function renderPaymentHistory() {
   ) {
 
     const zelle =
-      zelleForGw(gw);
+      zelleForGw(
+        gw
+      );
 
 
     const paidCount =
@@ -772,7 +1068,9 @@ function renderPaymentHistory() {
 
 
     const winner =
-      manualWinnerForGw(gw);
+      manualWinnerForGw(
+        gw
+      );
 
 
     const shouldOpen =
@@ -789,23 +1087,33 @@ function renderPaymentHistory() {
 
             const aWinner =
               winner &&
-              Number(winner.entryId) ===
-              Number(a.entryId);
+              Number(
+                winner.entryId
+              ) ===
+              Number(
+                a.entryId
+              );
 
 
             const bWinner =
               winner &&
-              Number(winner.entryId) ===
-              Number(b.entryId);
+              Number(
+                winner.entryId
+              ) ===
+              Number(
+                b.entryId
+              );
 
 
             if (
               aWinner !==
               bWinner
             ) {
+
               return aWinner
                 ? -1
                 : 1;
+
             }
 
 
@@ -827,9 +1135,11 @@ function renderPaymentHistory() {
               aPaid !==
               bPaid
             ) {
+
               return aPaid
                 ? 1
                 : -1;
+
             }
 
 
@@ -840,6 +1150,7 @@ function renderPaymentHistory() {
                 b.team
               )
             );
+
           }
         )
         .map(
@@ -854,8 +1165,12 @@ function renderPaymentHistory() {
 
             const isWinner =
               winner &&
-              Number(winner.entryId) ===
-              Number(manager.entryId);
+              Number(
+                winner.entryId
+              ) ===
+              Number(
+                manager.entryId
+              );
 
 
             return `
@@ -912,6 +1227,7 @@ function renderPaymentHistory() {
 
               </div>
             `;
+
           }
         )
         .join('');
@@ -932,6 +1248,7 @@ function renderPaymentHistory() {
               GW ${gw}
             </strong>
 
+
             ${
               gw === currentGw
                 ? `
@@ -941,6 +1258,7 @@ function renderPaymentHistory() {
                 `
                 : ''
             }
+
 
             <small>
               ${
@@ -972,6 +1290,8 @@ function renderPaymentHistory() {
 
         <div class="payment-gw-body">
 
+
+          <!-- ZELLE FOR THIS GW -->
 
           <div class="zelle-card">
 
@@ -1009,12 +1329,15 @@ function renderPaymentHistory() {
 
 
             <p class="zelle-help">
+
               $20 entry
+
               ${
                 winner
                   ? ` • Payment goes to ${escapeHtml(winner.team)}`
-                  : ''
+                  : ' • Winner not selected yet'
               }
+
             </p>
 
           </div>
@@ -1048,37 +1371,30 @@ function renderPaymentHistory() {
 
       </details>
     `);
+
   }
 
 
   if ($('paymentHistory')) {
-    $('paymentHistory').innerHTML =
-      cards.join('');
+
+    $('paymentHistory')
+      .innerHTML =
+        cards.join('');
+
   }
 
 
   bindPaymentButtons();
 
-
-  /*
-    When URL contains ?gw=3,
-    make sure GW3 is open.
-  */
-
-  if (requestedGw) {
-    openRequestedPaymentGw(
-      requestedGw,
-      false
-    );
-  }
 }
 
 
 /* =====================================================
-   UPDATE URL WHEN USER OPENS A PAYMENT GW
+   PAYMENT CARD URL EVENTS
 ===================================================== */
 
 function bindPaymentCardUrlEvents() {
+
   document
     .querySelectorAll(
       '.payment-gw-card'
@@ -1094,6 +1410,7 @@ function bindPaymentCardUrlEvents() {
               return;
             }
 
+
             const gw =
               Number(
                 card.dataset
@@ -1102,7 +1419,7 @@ function bindPaymentCardUrlEvents() {
 
 
             /*
-              Close other payment cards.
+              Keep one payment GW open.
             */
 
             document
@@ -1111,56 +1428,113 @@ function bindPaymentCardUrlEvents() {
               )
               .forEach(
                 other => {
-                  if (other !== card) {
-                    other.open = false;
+
+                  if (
+                    other !==
+                    card
+                  ) {
+
+                    other.open =
+                      false;
+
                   }
+
                 }
               );
 
 
             /*
-              Make this exact GW shareable.
+              Update shareable URL.
             */
 
-            const url =
-              new URL(
-                window.location.href
-              );
-
-            url.searchParams.set(
-              'tab',
-              'payments'
+            updateUrl(
+              'payments',
+              gw,
+              false
             );
 
-            url.searchParams.set(
-              'gw',
-              gw
-            );
-
-
-            window.history.replaceState(
-              {
-                tab: 'payments',
-                gw
-              },
-              '',
-              url
-            );
           }
         );
+
       }
     );
+
 }
 
 
 /* =====================================================
-   PAYMENT BUTTON EVENTS
+   OPEN SPECIFIC PAYMENT GW
+===================================================== */
+
+function openRequestedPaymentGw(
+  gw,
+  scroll = true
+) {
+
+  if (!gw) {
+    return;
+  }
+
+
+  const card =
+    document.querySelector(
+      `[data-payment-gw="${gw}"]`
+    );
+
+
+  if (!card) {
+    return;
+  }
+
+
+  document
+    .querySelectorAll(
+      '.payment-gw-card'
+    )
+    .forEach(
+      other => {
+
+        other.open =
+          other === card;
+
+      }
+    );
+
+
+  card.open =
+    true;
+
+
+  if (scroll) {
+
+    setTimeout(
+      () => {
+
+        card.scrollIntoView({
+          behavior:
+            'smooth',
+
+          block:
+            'start'
+        });
+
+      },
+      100
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   PAYMENT BUTTONS
 ===================================================== */
 
 function bindPaymentButtons() {
 
   /*
-    Copy Zelle
+    COPY ZELLE
   */
 
   document
@@ -1175,7 +1549,6 @@ function bindPaymentButtons() {
           async event => {
 
             event.preventDefault();
-
             event.stopPropagation();
 
 
@@ -1186,24 +1559,27 @@ function bindPaymentButtons() {
               );
 
 
-            const value =
-              zelleForGw(gw);
+            const zelle =
+              zelleForGw(
+                gw
+              );
 
 
-            if (!value) {
+            if (!zelle) {
               return;
             }
 
 
             try {
+
               await navigator
                 .clipboard
                 .writeText(
-                  value
+                  zelle
                 );
 
 
-              const original =
+              const oldText =
                 button.textContent;
 
 
@@ -1213,8 +1589,10 @@ function bindPaymentButtons() {
 
               setTimeout(
                 () => {
+
                   button.textContent =
-                    original;
+                    oldText;
+
                 },
                 1400
               );
@@ -1224,53 +1602,20 @@ function bindPaymentButtons() {
 
               window.prompt(
                 `GW${gw} Zelle:`,
-                value
+                zelle
               );
+
             }
+
           }
         );
+
       }
     );
 
 
   /*
-    Share reminder
-  */
-
-  document
-    .querySelectorAll(
-      '[data-share-gw]'
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          'click',
-          event => {
-
-            event.preventDefault();
-
-            event.stopPropagation();
-
-
-            const gw =
-              Number(
-                button.dataset
-                  .shareGw
-              );
-
-
-            openShareModal(
-              gw
-            );
-          }
-        );
-      }
-    );
-
-
-  /*
-    Copy reminder text
+    COPY PAYMENT REMINDER
   */
 
   document
@@ -1285,7 +1630,6 @@ function bindPaymentButtons() {
           async event => {
 
             event.preventDefault();
-
             event.stopPropagation();
 
 
@@ -1296,14 +1640,15 @@ function bindPaymentButtons() {
               );
 
 
-            const copied =
+            const success =
               await copyReminder(
                 gw
               );
 
 
-            if (copied) {
-              const original =
+            if (success) {
+
+              const oldText =
                 button.textContent;
 
 
@@ -1313,24 +1658,63 @@ function bindPaymentButtons() {
 
               setTimeout(
                 () => {
+
                   button.textContent =
-                    original;
+                    oldText;
+
                 },
                 1400
               );
+
             }
+
           }
         );
+
+      }
+    );
+
+
+  /*
+    SHARE PAYMENT REMINDER
+  */
+
+  document
+    .querySelectorAll(
+      '[data-share-gw]'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          event => {
+
+            event.preventDefault();
+            event.stopPropagation();
+
+
+            openShareModal(
+              Number(
+                button.dataset
+                  .shareGw
+              )
+            );
+
+          }
+        );
+
       }
     );
 
 
   bindPaymentCardUrlEvents();
+
 }
 
 
 /* =====================================================
-   REMINDER TEXT
+   PAYMENT REMINDER TEXT
 ===================================================== */
 
 function buildReminderText(gw) {
@@ -1342,18 +1726,27 @@ function buildReminderText(gw) {
 
 
   const zelle =
-    zelleForGw(gw) ||
+    zelleForGw(
+      gw
+    ) ||
     'Not entered yet';
+
+
+  const paymentLink =
+    `${window.location.origin}/?tab=payments&gw=${gw}`;
 
 
   if (
     unpaid.length === 0
   ) {
+
     return (
       `🏆 BALL KNOWLEDGE ONLY\n` +
       `GW${gw} PAYMENT UPDATE\n\n` +
-      `✅ Everyone has paid for GW${gw}.`
+      `✅ Everyone has paid for GW${gw}.\n\n` +
+      `${paymentLink}`
     );
+
   }
 
 
@@ -1366,10 +1759,6 @@ function buildReminderText(gw) {
       .join('\n');
 
 
-  const link =
-    `${window.location.origin}/?tab=payments&gw=${gw}`;
-
-
   return (
     `💰 BALL KNOWLEDGE ONLY\n` +
     `GW${gw} PAYMENT REMINDER\n\n` +
@@ -1378,8 +1767,10 @@ function buildReminderText(gw) {
     `Still unpaid:\n` +
     `${names}\n\n` +
     `${unpaid.length} payment${unpaid.length === 1 ? '' : 's'} remaining.\n\n` +
-    `View GW${gw} payments:\n${link}`
+    `View payments:\n` +
+    `${paymentLink}`
   );
+
 }
 
 
@@ -1390,7 +1781,9 @@ function buildReminderText(gw) {
 async function copyReminder(gw) {
 
   const text =
-    buildReminderText(gw);
+    buildReminderText(
+      gw
+    );
 
 
   try {
@@ -1400,6 +1793,7 @@ async function copyReminder(gw) {
       .writeText(
         text
       );
+
 
     return true;
 
@@ -1411,8 +1805,11 @@ async function copyReminder(gw) {
       text
     );
 
+
     return false;
+
   }
+
 }
 
 
@@ -1427,16 +1824,23 @@ function openShareModal(gw) {
 
 
   const unpaid =
-    unpaidManagersForGw(gw);
+    unpaidManagersForGw(
+      gw
+    );
 
 
   const zelle =
-    zelleForGw(gw);
+    zelleForGw(
+      gw
+    );
 
 
   if ($('shareModalTitle')) {
-    $('shareModalTitle').textContent =
-      `GW ${gw}`;
+
+    $('shareModalTitle')
+      .textContent =
+        `GW ${gw}`;
+
   }
 
 
@@ -1470,7 +1874,6 @@ function openShareModal(gw) {
 
       </div>
     `;
-
 
   } else {
 
@@ -1550,24 +1953,30 @@ function openShareModal(gw) {
         BALL KNOWLEDGE ONLY • NO LUCK. ONLY STATS.
       </div>
     `;
+
   }
 
 
-  const cardTitle =
+  const title =
     document.querySelector(
       '.share-card-gw'
     );
 
 
-  if (cardTitle) {
-    cardTitle.textContent =
+  if (title) {
+
+    title.textContent =
       `GW ${gw} PAYMENT REMINDER`;
+
   }
 
 
   if ($('shareModal')) {
-    $('shareModal').hidden =
-      false;
+
+    $('shareModal')
+      .hidden =
+        false;
+
   }
 
 
@@ -1575,14 +1984,18 @@ function openShareModal(gw) {
     .classList.add(
       'modal-open'
     );
+
 }
 
 
 function closeShareModal() {
 
   if ($('shareModal')) {
-    $('shareModal').hidden =
-      true;
+
+    $('shareModal')
+      .hidden =
+        true;
+
   }
 
 
@@ -1594,11 +2007,12 @@ function closeShareModal() {
     .classList.remove(
       'modal-open'
     );
+
 }
 
 
 /* =====================================================
-   CANVAS TEXT WRAPPING
+   CANVAS HELPERS
 ===================================================== */
 
 function wrapCanvasText(
@@ -1606,14 +2020,18 @@ function wrapCanvasText(
   text,
   maxWidth
 ) {
+
   const words =
     String(text)
       .split(' ');
 
 
-  const lines = [];
+  const lines =
+    [];
 
-  let line = '';
+
+  let line =
+    '';
 
 
   for (
@@ -1635,42 +2053,59 @@ function wrapCanvasText(
 
 
     if (
-      width > maxWidth &&
+      width >
+        maxWidth &&
       line
     ) {
-      lines.push(line);
+
+      lines.push(
+        line
+      );
+
 
       line =
         word;
 
     } else {
+
       line =
         testLine;
+
     }
+
   }
 
 
   if (line) {
-    lines.push(line);
+
+    lines.push(
+      line
+    );
+
   }
 
 
   return lines;
+
 }
 
 
 /* =====================================================
-   CREATE PAYMENT REMINDER IMAGE
+   CREATE REMINDER PNG
 ===================================================== */
 
 function createReminderCanvas(gw) {
 
   const unpaid =
-    unpaidManagersForGw(gw);
+    unpaidManagersForGw(
+      gw
+    );
 
 
   const zelle =
-    zelleForGw(gw);
+    zelleForGw(
+      gw
+    );
 
 
   const scale =
@@ -1727,7 +2162,7 @@ function createReminderCanvas(gw) {
 
 
   /*
-    Background
+    BACKGROUND
   */
 
   const gradient =
@@ -1770,7 +2205,7 @@ function createReminderCanvas(gw) {
 
 
   /*
-    Brand
+    BRAND
   */
 
   ctx.fillStyle =
@@ -1797,7 +2232,7 @@ function createReminderCanvas(gw) {
 
 
   /*
-    GW title
+    TITLE
   */
 
   ctx.fillStyle =
@@ -1827,7 +2262,7 @@ function createReminderCanvas(gw) {
 
 
   /*
-    Entry / remaining
+    STATS
   */
 
   ctx.fillStyle =
@@ -1877,7 +2312,7 @@ function createReminderCanvas(gw) {
 
 
   /*
-    Zelle
+    ZELLE
   */
 
   ctx.fillStyle =
@@ -1921,6 +2356,7 @@ function createReminderCanvas(gw) {
         550 +
         index * 40
       );
+
     }
   );
 
@@ -1930,7 +2366,7 @@ function createReminderCanvas(gw) {
 
 
   /*
-    All paid
+    ALL PAID
   */
 
   if (
@@ -1968,6 +2404,10 @@ function createReminderCanvas(gw) {
 
 
   } else {
+
+    /*
+      UNPAID
+    */
 
     ctx.fillStyle =
       '#D6AD55';
@@ -2018,7 +2458,7 @@ function createReminderCanvas(gw) {
 
 
         /*
-          Warning circle
+          ALERT CIRCLE
         */
 
         ctx.fillStyle =
@@ -2064,7 +2504,7 @@ function createReminderCanvas(gw) {
 
 
         /*
-          Team
+          TEAM
         */
 
         ctx.fillStyle =
@@ -2083,7 +2523,7 @@ function createReminderCanvas(gw) {
 
 
         /*
-          Manager
+          MANAGER
         */
 
         ctx.fillStyle =
@@ -2103,13 +2543,15 @@ function createReminderCanvas(gw) {
 
         y +=
           rowHeight;
+
       }
     );
+
   }
 
 
   /*
-    Footer
+    FOOTER
   */
 
   ctx.fillStyle =
@@ -2128,11 +2570,12 @@ function createReminderCanvas(gw) {
 
 
   return canvas;
+
 }
 
 
 /* =====================================================
-   SHARE PAYMENT IMAGE
+   SHARE PNG
 ===================================================== */
 
 async function shareReminderImage(gw) {
@@ -2142,11 +2585,14 @@ async function shareReminderImage(gw) {
 
 
   if (button) {
+
     button.disabled =
       true;
 
+
     button.textContent =
       'Creating…';
+
   }
 
 
@@ -2170,9 +2616,11 @@ async function shareReminderImage(gw) {
 
 
     if (!blob) {
+
       throw new Error(
         'Unable to create image'
       );
+
     }
 
 
@@ -2188,14 +2636,16 @@ async function shareReminderImage(gw) {
 
 
     /*
-      Native mobile share sheet.
+      Native mobile share sheet
     */
 
     if (
       navigator.share &&
       navigator.canShare &&
       navigator.canShare({
-        files: [file]
+        files: [
+          file
+        ]
       })
     ) {
 
@@ -2208,17 +2658,20 @@ async function shareReminderImage(gw) {
           `Ball Knowledge Only — GW${gw} payment reminder`,
 
         files:
-          [file]
+          [
+            file
+          ]
 
       });
 
 
       return;
+
     }
 
 
     /*
-      Browser fallback.
+      Browser fallback
     */
 
     const url =
@@ -2273,24 +2726,30 @@ async function shareReminderImage(gw) {
         error.message ||
         'Unable to share image'
       );
+
     }
 
 
   } finally {
 
     if (button) {
+
       button.disabled =
         false;
 
+
       button.textContent =
         'Share Image';
+
     }
+
   }
+
 }
 
 
 /* =====================================================
-   REFRESH PAYMENT DATA ONLY
+   REFRESH PAYMENTS ONLY
 ===================================================== */
 
 async function refreshPaymentsOnly() {
@@ -2326,10 +2785,12 @@ async function refreshPaymentsOnly() {
 
 
     if (!response.ok) {
+
       throw new Error(
         data.error ||
         'Unable to refresh payments'
       );
+
     }
 
 
@@ -2356,38 +2817,205 @@ async function refreshPaymentsOnly() {
     renderPaymentHistory();
 
 
-    if ($('updated')) {
-      $('updated').textContent =
-        `Payments updated ${new Date().toLocaleTimeString([], {
-          hour: 'numeric',
-          minute: '2-digit'
-        })}`;
-    }
-
-
   } catch (error) {
 
     console.error(
       'Payment refresh failed:',
       error
     );
+
   }
+
 }
 
 
 /* =====================================================
-   LOAD APP
+   OPEN TAB
+===================================================== */
+
+async function openTab(
+  tab,
+  options = {}
+) {
+
+  if (
+    !VALID_TABS.includes(
+      tab
+    )
+  ) {
+
+    tab =
+      'gameweek';
+
+  }
+
+
+  const {
+    gw = null,
+    updateHistory = true,
+    scroll = true
+  } = options;
+
+
+  /*
+    NAV
+  */
+
+  document
+    .querySelectorAll(
+      '[data-tab]'
+    )
+    .forEach(
+      button => {
+
+        button.classList.toggle(
+          'active',
+          button.dataset.tab ===
+            tab
+        );
+
+      }
+    );
+
+
+  /*
+    PANELS
+  */
+
+  document
+    .querySelectorAll(
+      '.panel'
+    )
+    .forEach(
+      panel => {
+
+        panel.hidden =
+          panel.id !==
+          tab;
+
+      }
+    );
+
+
+  /*
+    GAMEWEEK TAB
+  */
+
+  if (
+    tab === 'gameweek'
+  ) {
+
+    const desiredGw =
+      gw ||
+      getCurrentGw();
+
+
+    await loadGameweekView(
+      desiredGw,
+      {
+        updateHistory:
+          false
+      }
+    );
+
+  }
+
+
+  /*
+    PAYMENTS
+  */
+
+  if (
+    tab === 'payments'
+  ) {
+
+    await refreshPaymentsOnly();
+
+
+    if (gw) {
+
+      openRequestedPaymentGw(
+        gw,
+        scroll
+      );
+
+    }
+
+  }
+
+
+  /*
+    URL
+  */
+
+  if (updateHistory) {
+
+    const urlGw =
+      (
+        tab === 'gameweek' ||
+        tab === 'payments'
+      )
+        ? (
+            gw ||
+            (
+              tab === 'gameweek'
+                ? selectedGw
+                : null
+            )
+          )
+        : null;
+
+
+    updateUrl(
+      tab,
+      urlGw,
+      true
+    );
+
+  }
+
+
+  if (
+    scroll &&
+    !(
+      tab === 'payments' &&
+      gw
+    )
+  ) {
+
+    window.scrollTo({
+      top:
+        0,
+
+      behavior:
+        'smooth'
+    });
+
+  }
+
+}
+
+
+/* =====================================================
+   LOAD CURRENT APP DATA
 ===================================================== */
 
 async function loadEverything() {
 
   if ($('updated')) {
-    $('updated').textContent =
-      'Updating…';
+
+    $('updated')
+      .textContent =
+        'Updating…';
+
   }
 
 
   try {
+
+    /*
+      CURRENT FPL DASHBOARD
+    */
 
     const response =
       await fetch(
@@ -2404,10 +3032,12 @@ async function loadEverything() {
 
 
     if (!response.ok) {
+
       throw new Error(
         dashboard.error ||
         'Unable to load FPL'
       );
+
     }
 
 
@@ -2415,18 +3045,43 @@ async function loadEverything() {
       dashboard;
 
 
-    renderDashboard();
+    /*
+      Default GW = current.
+    */
 
+    selectedGw =
+      getCurrentGw();
+
+
+    gwViewData =
+      dashboardData;
+
+
+    renderCurrentLeagueData();
+
+
+    buildPublicGwSelect();
+
+
+    /*
+      Payment history.
+    */
 
     await refreshPaymentsOnly();
 
 
     if ($('updated')) {
-      $('updated').textContent =
-        `Updated ${new Date().toLocaleTimeString([], {
-          hour: 'numeric',
-          minute: '2-digit'
-        })}`;
+
+      $('updated')
+        .textContent =
+          `Updated ${new Date().toLocaleTimeString([], {
+            hour:
+              'numeric',
+
+            minute:
+              '2-digit'
+          })}`;
+
     }
 
 
@@ -2438,24 +3093,74 @@ async function loadEverything() {
 
 
     if ($('updated')) {
-      $('updated').textContent =
-        error.message;
+
+      $('updated')
+        .textContent =
+          error.message;
+
     }
 
 
     if ($('connectionStatus')) {
-      $('connectionStatus').textContent =
-        '● CONNECTION ERROR';
 
-      $('connectionStatus').className =
-        'connection error';
+      $('connectionStatus')
+        .textContent =
+          '● CONNECTION ERROR';
+
+
+      $('connectionStatus')
+        .className =
+          'connection error';
+
     }
+
   }
+
 }
 
 
 /* =====================================================
-   NAV BUTTONS
+   PUBLIC GW SELECT EVENT
+===================================================== */
+
+if ($('publicGwSelect')) {
+
+  $('publicGwSelect')
+    .addEventListener(
+      'change',
+      async event => {
+
+        const gw =
+          Number(
+            event.target.value
+          );
+
+
+        await loadGameweekView(
+          gw,
+          {
+            updateHistory:
+              true
+          }
+        );
+
+
+        window.scrollTo({
+          top:
+            0,
+
+          behavior:
+            'smooth'
+        });
+
+      }
+    );
+
+}
+
+
+/* =====================================================
+   MAIN NAVIGATION
 ===================================================== */
 
 document
@@ -2470,12 +3175,26 @@ document
         async () => {
 
           const tab =
-            button.dataset.tab;
+            button.dataset
+              .tab;
 
+
+          /*
+            When clicking GW manually,
+            show the currently selected GW.
+
+            When clicking Payments manually,
+            default to current payment GW.
+          */
 
           await openTab(
             tab,
             {
+              gw:
+                tab === 'gameweek'
+                  ? selectedGw
+                  : null,
+
               updateHistory:
                 true,
 
@@ -2483,8 +3202,10 @@ document
                 true
             }
           );
+
         }
       );
+
     }
   );
 
@@ -2502,37 +3223,38 @@ window.addEventListener(
 
 
     const gw =
-      tab === 'payments'
-        ? getRequestedPaymentGw()
-        : null;
+      getRequestedGw();
 
 
     await openTab(
       tab,
       {
+        gw,
+
         updateHistory:
           false,
-
-        gw,
 
         scroll:
           true
       }
     );
+
   }
 );
 
 
 /* =====================================================
-   SHARE MODAL EVENTS
+   SHARE MODAL BUTTONS
 ===================================================== */
 
 if ($('closeShare')) {
+
   $('closeShare')
     .addEventListener(
       'click',
       closeShareModal
     );
+
 }
 
 
@@ -2547,11 +3269,13 @@ document
         'click',
         closeShareModal
       );
+
     }
   );
 
 
 if ($('copyReminder')) {
+
   $('copyReminder')
     .addEventListener(
       'click',
@@ -2562,13 +3286,14 @@ if ($('copyReminder')) {
         }
 
 
-        const copied =
+        const success =
           await copyReminder(
             activeShareGw
           );
 
 
-        if (copied) {
+        if (success) {
+
           const button =
             $('copyReminder');
 
@@ -2579,18 +3304,24 @@ if ($('copyReminder')) {
 
           setTimeout(
             () => {
+
               button.textContent =
                 'Copy Text';
+
             },
             1500
           );
+
         }
+
       }
     );
+
 }
 
 
 if ($('shareReminderImage')) {
+
   $('shareReminderImage')
     .addEventListener(
       'click',
@@ -2604,53 +3335,61 @@ if ($('shareReminderImage')) {
         shareReminderImage(
           activeShareGw
         );
+
       }
     );
+
 }
 
 
 /* =====================================================
-   MAIN REFRESH BUTTON
+   MAIN REFRESH
 ===================================================== */
 
 if ($('refresh')) {
+
   $('refresh')
     .addEventListener(
       'click',
       async () => {
 
-        await loadEverything();
+        /*
+          Remember what the user is viewing.
+        */
 
-
-        const tab =
+        const activeTab =
           getRequestedTab();
 
 
-        const gw =
-          tab === 'payments'
-            ? getRequestedPaymentGw()
-            : null;
+        const requestedGw =
+          getRequestedGw();
+
+
+        await loadEverything();
 
 
         await openTab(
-          tab,
+          activeTab,
           {
+            gw:
+              requestedGw,
+
             updateHistory:
               false,
-
-            gw,
 
             scroll:
               false
           }
         );
+
       }
     );
+
 }
 
 
 /* =====================================================
-   REFRESH WHEN RETURNING TO PAGE
+   RETURN TO APP
 ===================================================== */
 
 document.addEventListener(
@@ -2662,8 +3401,11 @@ document.addEventListener(
         'visible' &&
       dashboardData
     ) {
+
       refreshPaymentsOnly();
+
     }
+
   }
 );
 
@@ -2673,14 +3415,17 @@ window.addEventListener(
   () => {
 
     if (dashboardData) {
+
       refreshPaymentsOnly();
+
     }
+
   }
 );
 
 
 /* =====================================================
-   LIGHT AUTO REFRESH
+   LIGHT PAYMENT AUTO-REFRESH
 ===================================================== */
 
 setInterval(
@@ -2691,7 +3436,9 @@ setInterval(
         'visible' &&
       dashboardData
     ) {
+
       refreshPaymentsOnly();
+
     }
 
   },
@@ -2706,44 +3453,95 @@ setInterval(
 async function startApp() {
 
   /*
-    Load FPL + payments first.
+    First load the CURRENT FPL league.
   */
 
   await loadEverything();
 
 
   /*
-    Then inspect shared URL.
+    Then honor the URL.
   */
 
   const requestedTab =
     getRequestedTab();
 
 
-  const requestedGw =
-    requestedTab === 'payments'
-      ? getRequestedPaymentGw()
-      : null;
+  let requestedGw =
+    getRequestedGw();
+
+
+  const currentGw =
+    getCurrentGw();
 
 
   /*
-    Do not create another history entry
-    on initial page load.
+    Prevent invalid future GW links.
   */
+
+  if (
+    requestedGw &&
+    requestedGw >
+      currentGw
+  ) {
+
+    requestedGw =
+      currentGw;
+
+  }
+
+
+  /*
+    For GW screen with no explicit GW,
+    use current.
+  */
+
+  if (
+    requestedTab ===
+      'gameweek' &&
+    !requestedGw
+  ) {
+
+    requestedGw =
+      currentGw;
+
+  }
+
 
   await openTab(
     requestedTab,
     {
-      updateHistory:
-        false,
-
       gw:
         requestedGw,
+
+      updateHistory:
+        false,
 
       scroll:
         false
     }
   );
+
+
+  /*
+    Normalize the initial URL so it
+    becomes easy to copy/share.
+  */
+
+  if (
+    requestedTab ===
+    'gameweek'
+  ) {
+
+    updateUrl(
+      'gameweek',
+      requestedGw ||
+      currentGw,
+      false
+    );
+
+  }
+
 }
 
 
