@@ -1,309 +1,235 @@
 import {
   supabaseRequest
-} from '../lib/supabase.js';
+} from './lib/supabase.js';
+
+
+async function getSettings() {
+  const rows =
+    await supabaseRequest(
+      'league_settings?id=eq.1&select=id,zelle_display,gw_entry_fee,updated_at'
+    );
+
+
+  const settings =
+    Array.isArray(rows) &&
+    rows.length > 0
+      ? rows[0]
+      : null;
+
+
+  return {
+    zelle:
+      settings?.zelle_display ||
+      process.env.ZELLE_DISPLAY ||
+      '',
+
+    fee:
+      Number(
+        settings?.gw_entry_fee ??
+        process.env.GW_ENTRY_FEE ??
+        0
+      ),
+
+    updatedAt:
+      settings?.updated_at ||
+      null
+  };
+}
+
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
+
+  /*
+    IMPORTANT:
+    Never cache payment information.
+
+    We always want the newest values
+    directly from Supabase.
+  */
+
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate, proxy-revalidate'
+  );
+
+  res.setHeader(
+    'CDN-Cache-Control',
+    'no-store'
+  );
+
+  res.setHeader(
+    'Vercel-CDN-Cache-Control',
+    'no-store'
+  );
+
+
+  if (req.method !== 'GET') {
     return res.status(405).json({
       error: 'Method not allowed'
     });
   }
 
-  const {
-    password,
-    gameweek,
-    entryId,
-    action,
-    value
-  } = req.body || {};
-
-  /*
-    ==========================================
-    AUTH
-    ==========================================
-  */
-
-  if (!process.env.ADMIN_PASSWORD) {
-    return res.status(500).json({
-      error:
-        'ADMIN_PASSWORD is not configured'
-    });
-  }
-
-  if (
-    password !==
-    process.env.ADMIN_PASSWORD
-  ) {
-    return res.status(401).json({
-      error:
-        'Incorrect admin password'
-    });
-  }
-
-  /*
-    ==========================================
-    GAMEWEEK
-    ==========================================
-  */
-
-  const gw =
-    Number(gameweek);
-
-  if (
-    !Number.isInteger(gw) ||
-    gw < 1 ||
-    gw > 38
-  ) {
-    return res.status(400).json({
-      error: 'Invalid Gameweek'
-    });
-  }
 
   try {
-    const now =
-      new Date().toISOString();
+
+    const settings =
+      await getSettings();
+
 
     /*
-      ==========================================
-      CLEAR WINNER
-      ==========================================
+      ========================================
+      MULTIPLE GAMEWEEKS
+      ========================================
+
+      Example:
+
+      /api/payments?from=1&to=5
     */
 
     if (
-      action === 'clearWinner'
+      req.query.from !== undefined ||
+      req.query.to !== undefined
     ) {
-      await supabaseRequest(
-        `payments` +
-        `?gameweek=eq.${gw}` +
-        `&winner=eq.true`,
-        {
-          method: 'PATCH',
 
-          headers: {
-            Prefer:
-              'return=minimal'
-          },
+      const from =
+        Number(
+          req.query.from || 1
+        );
 
-          body:
-            JSON.stringify({
-              winner: false,
-              updated_at: now
-            })
-        }
-      );
+
+      const to =
+        Number(
+          req.query.to || from
+        );
+
+
+      if (
+        !Number.isInteger(from) ||
+        !Number.isInteger(to) ||
+        from < 1 ||
+        to > 38 ||
+        from > to
+      ) {
+
+        return res.status(400).json({
+          error:
+            'Invalid Gameweek range'
+        });
+      }
+
+
+      const payments =
+        await supabaseRequest(
+          'payments' +
+          `?gameweek=gte.${from}` +
+          `&gameweek=lte.${to}` +
+          '&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at' +
+          '&order=gameweek.desc,entry_id.asc'
+        );
+
 
       return res.status(200).json({
-        success: true,
-        gameweek: gw,
-        action: 'clearWinner'
-      });
-    }
 
-    /*
-      Other actions require manager entry ID
-    */
+        from,
+        to,
 
-    const entry =
-      Number(entryId);
+        fee:
+          settings.fee,
 
-    if (
-      !Number.isInteger(entry) ||
-      entry <= 0
-    ) {
-      return res.status(400).json({
-        error:
-          'Invalid FPL entry ID'
-      });
-    }
+        zelle:
+          settings.zelle,
 
-    if (
-      action !== 'paid' &&
-      action !== 'winner'
-    ) {
-      return res.status(400).json({
-        error: 'Invalid action'
-      });
-    }
+        payments:
+          Array.isArray(payments)
+            ? payments
+            : [],
 
-    /*
-      ==========================================
-      READ EXISTING ROW
-      ==========================================
-    */
-
-    const existingRows =
-      await supabaseRequest(
-        `payments` +
-        `?gameweek=eq.${gw}` +
-        `&entry_id=eq.${entry}` +
-        `&select=*`
-      );
-
-    const existing =
-      Array.isArray(existingRows) &&
-      existingRows.length
-        ? existingRows[0]
-        : null;
-
-    /*
-      ==========================================
-      PAID / UNPAID
-      ==========================================
-    */
-
-    if (
-      action === 'paid'
-    ) {
-      const paid =
-        value === true ||
-        value === 'true';
-
-      const record = {
-        gameweek: gw,
-
-        entry_id: entry,
-
-        paid,
+        updatedAt:
+          new Date().toISOString(),
 
         /*
-          Keep existing winner status.
+          Useful while testing.
+          This should change every request.
         */
-        winner:
-          existing?.winner === true,
+        requestId:
+          Date.now()
 
-        paid_at:
-          paid
-            ? existing?.paid_at || now
-            : null,
-
-        updated_at: now
-      };
-
-      const result =
-        await supabaseRequest(
-          `payments` +
-          `?on_conflict=gameweek,entry_id`,
-          {
-            method: 'POST',
-
-            headers: {
-              Prefer:
-                'resolution=merge-duplicates,return=representation'
-            },
-
-            body:
-              JSON.stringify([
-                record
-              ])
-          }
-        );
-
-      return res.status(200).json({
-        success: true,
-        gameweek: gw,
-        action: 'paid',
-
-        payment:
-          Array.isArray(result)
-            ? result[0]
-            : result
       });
     }
+
 
     /*
-      ==========================================
-      SET WINNER
-      ==========================================
+      ========================================
+      SINGLE GAMEWEEK
+      ========================================
     */
 
-    if (
-      action === 'winner'
-    ) {
-      /*
-        Clear previous winner for this GW.
-      */
-
-      await supabaseRequest(
-        `payments` +
-        `?gameweek=eq.${gw}` +
-        `&winner=eq.true`,
-        {
-          method: 'PATCH',
-
-          headers: {
-            Prefer:
-              'return=minimal'
-          },
-
-          body:
-            JSON.stringify({
-              winner: false,
-              updated_at: now
-            })
-        }
+    const gameweek =
+      Number(
+        req.query.gw || 1
       );
 
-      /*
-        Preserve payment status.
-      */
 
-      const record = {
-        gameweek: gw,
+    if (
+      !Number.isInteger(gameweek) ||
+      gameweek < 1 ||
+      gameweek > 38
+    ) {
 
-        entry_id: entry,
-
-        paid:
-          existing?.paid === true,
-
-        winner: true,
-
-        paid_at:
-          existing?.paid_at || null,
-
-        updated_at: now
-      };
-
-      const result =
-        await supabaseRequest(
-          `payments` +
-          `?on_conflict=gameweek,entry_id`,
-          {
-            method: 'POST',
-
-            headers: {
-              Prefer:
-                'resolution=merge-duplicates,return=representation'
-            },
-
-            body:
-              JSON.stringify([
-                record
-              ])
-          }
-        );
-
-      return res.status(200).json({
-        success: true,
-        gameweek: gw,
-        action: 'winner',
-
-        payment:
-          Array.isArray(result)
-            ? result[0]
-            : result
+      return res.status(400).json({
+        error:
+          'Invalid Gameweek'
       });
     }
 
+
+    const payments =
+      await supabaseRequest(
+        'payments' +
+        `?gameweek=eq.${gameweek}` +
+        '&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at' +
+        '&order=entry_id.asc'
+      );
+
+
+    return res.status(200).json({
+
+      gameweek,
+
+      fee:
+        settings.fee,
+
+      zelle:
+        settings.zelle,
+
+      payments:
+        Array.isArray(payments)
+          ? payments
+          : [],
+
+      updatedAt:
+        new Date().toISOString(),
+
+      requestId:
+        Date.now()
+
+    });
+
+
   } catch (error) {
+
     console.error(
-      'Admin payment update error:',
+      'Payments API error:',
       error
     );
 
+
     return res.status(500).json({
+
       error:
         error.message ||
-        'Unable to save change'
+        'Unable to load payments'
+
     });
   }
 }
