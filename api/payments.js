@@ -2,6 +2,37 @@ import {
   supabaseRequest
 } from './lib/supabase.js';
 
+async function getSettings() {
+  const rows =
+    await supabaseRequest(
+      'league_settings?id=eq.1&select=id,zelle_display,gw_entry_fee,updated_at'
+    );
+
+  const settings =
+    Array.isArray(rows) &&
+    rows.length > 0
+      ? rows[0]
+      : null;
+
+  return {
+    zelle:
+      settings?.zelle_display ||
+      process.env.ZELLE_DISPLAY ||
+      '',
+
+    fee:
+      Number(
+        settings?.gw_entry_fee ??
+        process.env.GW_ENTRY_FEE ??
+        0
+      ),
+
+    updatedAt:
+      settings?.updated_at ||
+      null
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({
@@ -10,22 +41,22 @@ export default async function handler(req, res) {
   }
 
   try {
+    const settings =
+      await getSettings();
+
     /*
-      RANGE MODE
-      /api/payments?from=1&to=5
+      MULTIPLE GAMEWEEKS
     */
 
     if (
       req.query.from !== undefined ||
       req.query.to !== undefined
     ) {
-      const from = Number(
-        req.query.from || 1
-      );
+      const from =
+        Number(req.query.from || 1);
 
-      const to = Number(
-        req.query.to || from
-      );
+      const to =
+        Number(req.query.to || from);
 
       if (
         !Number.isInteger(from) ||
@@ -35,29 +66,29 @@ export default async function handler(req, res) {
         from > to
       ) {
         return res.status(400).json({
-          error: 'Invalid Gameweek range'
+          error:
+            'Invalid Gameweek range'
         });
       }
 
       const payments =
         await supabaseRequest(
-          `payments` +
+          'payments' +
           `?gameweek=gte.${from}` +
           `&gameweek=lte.${to}` +
-          `&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at` +
-          `&order=gameweek.desc,entry_id.asc`
+          '&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at' +
+          '&order=gameweek.desc,entry_id.asc'
         );
 
       return res.status(200).json({
         from,
         to,
 
-        fee: Number(
-          process.env.GW_ENTRY_FEE || 0
-        ),
+        fee:
+          settings.fee,
 
         zelle:
-          process.env.ZELLE_DISPLAY || '',
+          settings.zelle,
 
         payments:
           Array.isArray(payments)
@@ -70,7 +101,7 @@ export default async function handler(req, res) {
     }
 
     /*
-      SINGLE GW MODE
+      SINGLE GAMEWEEK
     */
 
     const gameweek =
@@ -88,21 +119,20 @@ export default async function handler(req, res) {
 
     const payments =
       await supabaseRequest(
-        `payments` +
+        'payments' +
         `?gameweek=eq.${gameweek}` +
-        `&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at` +
-        `&order=entry_id.asc`
+        '&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at' +
+        '&order=entry_id.asc'
       );
 
     return res.status(200).json({
       gameweek,
 
-      fee: Number(
-        process.env.GW_ENTRY_FEE || 0
-      ),
+      fee:
+        settings.fee,
 
       zelle:
-        process.env.ZELLE_DISPLAY || '',
+        settings.zelle,
 
       payments:
         Array.isArray(payments)
