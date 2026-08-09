@@ -3,12 +3,10 @@ import {
 } from './lib/supabase.js';
 
 async function getSettings() {
-
   const rows =
     await supabaseRequest(
       'league_settings?id=eq.1&select=id,zelle_display,gw_entry_fee,updated_at'
     );
-
 
   const settings =
     Array.isArray(rows) &&
@@ -16,21 +14,64 @@ async function getSettings() {
       ? rows[0]
       : null;
 
+  const databaseZelle =
+    typeof settings?.zelle_display === 'string'
+      ? settings.zelle_display.trim()
+      : '';
+
+  const databaseFee =
+    settings?.gw_entry_fee;
 
   return {
+    /*
+      Prefer Supabase value.
 
+      Only fall back to the Vercel ENV value
+      if Supabase does not have a usable
+      Zelle value yet.
+    */
     zelle:
-      settings?.zelle_display ||
+      databaseZelle ||
       process.env.ZELLE_DISPLAY ||
       '',
 
+    /*
+      Prefer Supabase fee.
+
+      ?? is used instead of || so a valid
+      value of 0 does not incorrectly
+      fall back to the ENV variable.
+    */
     fee:
       Number(
-        settings?.gw_entry_fee ??
+        databaseFee ??
         process.env.GW_ENTRY_FEE ??
         0
-      )
+      ),
 
+    updatedAt:
+      settings?.updated_at ||
+      null,
+
+    /*
+      Optional but useful while testing.
+    */
+    source: {
+      zelle:
+        databaseZelle
+          ? 'database'
+          : process.env.ZELLE_DISPLAY
+            ? 'environment'
+            : 'none',
+
+      fee:
+        databaseFee !== null &&
+        databaseFee !== undefined
+          ? 'database'
+          : process.env.GW_ENTRY_FEE !== undefined
+            ? 'environment'
+            : 'default'
+    }
   };
 }
 
