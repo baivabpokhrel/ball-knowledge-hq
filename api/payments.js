@@ -2,103 +2,63 @@ import {
   supabaseRequest
 } from './lib/supabase.js';
 
-async function getSettings() {
-  const rows =
-    await supabaseRequest(
-      'league_settings?id=eq.1&select=id,zelle_display,gw_entry_fee,updated_at'
-    );
+const GW_ENTRY_FEE = 20;
 
-  const settings =
-    Array.isArray(rows) &&
-    rows.length > 0
-      ? rows[0]
-      : null;
 
-  const databaseZelle =
-    typeof settings?.zelle_display === 'string'
-      ? settings.zelle_display.trim()
-      : '';
+function noCache(res) {
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate, proxy-revalidate'
+  );
 
-  const databaseFee =
-    settings?.gw_entry_fee;
+  res.setHeader(
+    'CDN-Cache-Control',
+    'no-store'
+  );
 
-  return {
-    /*
-      Prefer Supabase value.
-
-      Only fall back to the Vercel ENV value
-      if Supabase does not have a usable
-      Zelle value yet.
-    */
-    zelle:
-      databaseZelle ||
-      process.env.ZELLE_DISPLAY ||
-      '',
-
-    /*
-      Prefer Supabase fee.
-
-      ?? is used instead of || so a valid
-      value of 0 does not incorrectly
-      fall back to the ENV variable.
-    */
-    fee:
-      Number(
-        databaseFee ??
-        process.env.GW_ENTRY_FEE ??
-        0
-      ),
-
-    updatedAt:
-      settings?.updated_at ||
-      null,
-
-    /*
-      Optional but useful while testing.
-    */
-    source: {
-      zelle:
-        databaseZelle
-          ? 'database'
-          : process.env.ZELLE_DISPLAY
-            ? 'environment'
-            : 'none',
-
-      fee:
-        databaseFee !== null &&
-        databaseFee !== undefined
-          ? 'database'
-          : process.env.GW_ENTRY_FEE !== undefined
-            ? 'environment'
-            : 'default'
-    }
-  };
+  res.setHeader(
+    'Vercel-CDN-Cache-Control',
+    'no-store'
+  );
 }
 
+
 export default async function handler(req, res) {
+
+  noCache(res);
+
+
   if (req.method !== 'GET') {
     return res.status(405).json({
       error: 'Method not allowed'
     });
   }
 
+
   try {
-    const settings =
-      await getSettings();
 
     /*
-      MULTIPLE GAMEWEEKS
+      =========================================
+      RANGE MODE
+      /api/payments?from=1&to=5
+      =========================================
     */
 
     if (
       req.query.from !== undefined ||
       req.query.to !== undefined
     ) {
+
       const from =
-        Number(req.query.from || 1);
+        Number(
+          req.query.from || 1
+        );
 
       const to =
-        Number(req.query.to || from);
+        Number(
+          req.query.to || from
+        );
+
 
       if (
         !Number.isInteger(from) ||
@@ -108,10 +68,14 @@ export default async function handler(req, res) {
         from > to
       ) {
         return res.status(400).json({
-          error:
-            'Invalid Gameweek range'
+          error: 'Invalid Gameweek range'
         });
       }
+
+
+      /*
+        Get payment records
+      */
 
       const payments =
         await supabaseRequest(
@@ -122,32 +86,65 @@ export default async function handler(req, res) {
           '&order=gameweek.desc,entry_id.asc'
         );
 
+
+      /*
+        Get Zelle settings for all requested GWs
+      */
+
+      const settings =
+        await supabaseRequest(
+          'gameweek_settings' +
+          `?gameweek=gte.${from}` +
+          `&gameweek=lte.${to}` +
+          '&select=gameweek,zelle_display,updated_at' +
+          '&order=gameweek.desc'
+        );
+
+
       return res.status(200).json({
+
         from,
         to,
 
-        fee:
-          settings.fee,
+        /*
+          Fee never changes.
+        */
 
-        zelle:
-          settings.zelle,
+        fee:
+          GW_ENTRY_FEE,
 
         payments:
           Array.isArray(payments)
             ? payments
             : [],
 
+        gameweekSettings:
+          Array.isArray(settings)
+            ? settings
+            : [],
+
         updatedAt:
-          new Date().toISOString()
+          new Date().toISOString(),
+
+        requestId:
+          Date.now()
+
       });
     }
 
+
     /*
-      SINGLE GAMEWEEK
+      =========================================
+      SINGLE GW MODE
+      /api/payments?gw=1
+      =========================================
     */
 
     const gameweek =
-      Number(req.query.gw || 1);
+      Number(
+        req.query.gw || 1
+      );
+
 
     if (
       !Number.isInteger(gameweek) ||
@@ -159,6 +156,7 @@ export default async function handler(req, res) {
       });
     }
 
+
     const payments =
       await supabaseRequest(
         'payments' +
@@ -167,34 +165,66 @@ export default async function handler(req, res) {
         '&order=entry_id.asc'
       );
 
+
+    const settingsRows =
+      await supabaseRequest(
+        'gameweek_settings' +
+        `?gameweek=eq.${gameweek}` +
+        '&select=gameweek,zelle_display,updated_at'
+      );
+
+
+    const settings =
+      Array.isArray(settingsRows) &&
+      settingsRows.length > 0
+        ? settingsRows[0]
+        : null;
+
+
     return res.status(200).json({
+
       gameweek,
 
       fee:
-        settings.fee,
+        GW_ENTRY_FEE,
 
       zelle:
-        settings.zelle,
+        settings?.zelle_display ||
+        '',
 
       payments:
         Array.isArray(payments)
           ? payments
           : [],
 
+      gameweekSettings:
+        settings
+          ? [settings]
+          : [],
+
       updatedAt:
-        new Date().toISOString()
+        new Date().toISOString(),
+
+      requestId:
+        Date.now()
+
     });
 
+
   } catch (error) {
+
     console.error(
       'Payments API error:',
       error
     );
 
+
     return res.status(500).json({
+
       error:
         error.message ||
         'Unable to load payments'
+
     });
   }
 }
