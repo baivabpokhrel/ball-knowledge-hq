@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -21,15 +23,20 @@
     rel="stylesheet"
     href="/style.css"
   >
+
 </head>
+
 
 <body>
 
   <main class="app">
 
+    <!-- HEADER -->
+
     <header class="topbar">
 
       <div>
+
         <p class="eyebrow">
           BALL KNOWLEDGE HQ
         </p>
@@ -44,13 +51,15 @@
         >
           Connecting to FPL…
         </p>
+
       </div>
+
 
       <button
         id="refresh"
         class="icon-button"
         type="button"
-        aria-label="Refresh"
+        aria-label="Refresh data"
       >
         ↻
       </button>
@@ -58,34 +67,188 @@
     </header>
 
 
+    <!-- TOP NAV -->
+
+    <nav class="main-nav">
+
+      <button
+        type="button"
+        class="nav-button active"
+        data-tab="gameweek"
+      >
+        <span>⚽</span>
+        GW
+      </button>
+
+
+      <button
+        type="button"
+        class="nav-button"
+        data-tab="payments"
+      >
+        <span>💰</span>
+        Payments
+      </button>
+
+
+      <button
+        type="button"
+        class="nav-button"
+        data-tab="predictions"
+      >
+        <span>🔮</span>
+        Predict
+      </button>
+
+
+      <button
+        type="button"
+        class="nav-button"
+        data-tab="overall"
+      >
+        <span>🏆</span>
+        Overall
+      </button>
+
+    </nav>
+
+
+    <!-- GAMEWEEK -->
+
+    <section
+      id="gameweek"
+      class="panel"
+    >
+
+      <section class="status-card">
+
+        <div class="status-top">
+
+          <div>
+
+            <span
+              id="statusCode"
+              class="status-pill"
+            >
+              —
+            </span>
+
+            <h2>
+              Gameweek
+              <span id="gw">
+                —
+              </span>
+            </h2>
+
+            <p id="statusText">
+              Loading…
+            </p>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <section class="award-card">
+
+        <span class="award-icon">
+          👑
+        </span>
+
+        <div>
+
+          <small id="awardTitle">
+            Gameweek Leader
+          </small>
+
+          <h3 id="awardText">
+            —
+          </h3>
+
+          <p id="awardNote">
+            —
+          </p>
+
+        </div>
+
+      </section>
+
+
+      <section>
+
+        <div class="section-heading">
+
+          <div>
+
+            <h3>
+              Gameweek Standings
+            </h3>
+
+            <p>
+              Points for this Gameweek only.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="weeklyList"
+          class="standings-list"
+        >
+          <div class="empty">
+            Loading standings…
+          </div>
+        </div>
+
+      </section>
+
+    </section>
+
+
     <!-- PAYMENTS -->
 
     <section
       id="payments"
       class="panel"
+      hidden
     >
 
       <div class="gw-heading">
 
         <div>
+
           <span class="label">
             CURRENT GAMEWEEK
           </span>
 
           <h2>
-            GW <span id="paymentGw">—</span>
+            GW
+            <span id="paymentGw">
+              —
+            </span>
           </h2>
+
         </div>
 
+
         <div class="fee-badge">
+
           $<span id="fee">—</span>
+
           <small>
             ENTRY
           </small>
+
         </div>
 
       </div>
 
+
+      <!-- ZELLE -->
 
       <section class="zelle-card">
 
@@ -110,17 +273,47 @@
         </div>
 
         <p class="zelle-help">
-          Please include your team name in the payment memo.
+          Include your FPL team name in the payment memo.
         </p>
 
       </section>
 
+
+      <!-- WINNER -->
+
+      <section class="winner-card">
+
+        <div class="winner-trophy">
+          🏆
+        </div>
+
+        <div>
+
+          <small id="winnerLabel">
+            GW WINNER
+          </small>
+
+          <h3 id="winnerTeam">
+            To be decided
+          </h3>
+
+          <p id="winnerManager">
+            Winner will appear here.
+          </p>
+
+        </div>
+
+      </section>
+
+
+      <!-- PAYMENT SUMMARY -->
 
       <section class="payment-summary">
 
         <div class="summary-top">
 
           <div>
+
             <strong id="paidCount">
               0 / 0
             </strong>
@@ -128,7 +321,9 @@
             <small>
               PAID
             </small>
+
           </div>
+
 
           <span id="remainingCount">
             —
@@ -136,37 +331,49 @@
 
         </div>
 
+
         <div class="progress">
+
           <div
             id="paymentProgress"
             class="progress-fill"
           ></div>
+
         </div>
 
       </section>
 
 
+      <!-- PAYMENT LIST -->
+
       <section>
 
         <div class="section-heading">
+
           <div>
+
             <h3>
               Payment Status
             </h3>
 
             <p>
-              Everyone can see who has paid for this Gameweek.
+              Everyone can see the current status.
             </p>
+
           </div>
+
         </div>
+
 
         <div
           id="paymentList"
           class="manager-list"
         >
+
           <div class="empty">
             Loading managers…
           </div>
+
         </div>
 
       </section>
@@ -189,11 +396,11 @@
         </span>
 
         <h2>
-          Live Win Prediction
+          Live GW Win Prediction
         </h2>
 
         <p>
-          Once the Gameweek begins, this screen will calculate each manager's chance of winning based on current points, captains and remaining fixtures.
+          After the Gameweek starts, this page will estimate each manager's chance of winning based on live points, remaining players, captaincy and remaining matches.
         </p>
 
         <div class="coming-soon">
@@ -201,88 +408,6 @@
         </div>
 
       </div>
-
-    </section>
-
-
-    <!-- GAMEWEEK -->
-
-    <section
-      id="gameweek"
-      class="panel"
-      hidden
-    >
-
-      <section class="status-card">
-
-        <div>
-          <span
-            id="statusCode"
-            class="status-pill"
-          >
-            —
-          </span>
-
-          <h2>
-            Gameweek
-            <span id="gw">
-              —
-            </span>
-          </h2>
-
-          <p id="statusText">
-            Loading…
-          </p>
-        </div>
-
-      </section>
-
-
-      <section>
-
-        <div class="section-heading">
-
-          <div>
-            <h3>
-              Gameweek Standings
-            </h3>
-
-            <p>
-              Points for this Gameweek only.
-            </p>
-          </div>
-
-        </div>
-
-        <div
-          id="weeklyList"
-          class="standings-list"
-        ></div>
-
-      </section>
-
-
-      <section class="award-card">
-
-        <span class="award-icon">
-          👑
-        </span>
-
-        <div>
-          <small id="awardTitle">
-            Provisional Leader
-          </small>
-
-          <h3 id="awardText">
-            —
-          </h3>
-
-          <p id="awardNote">
-            —
-          </p>
-        </div>
-
-      </section>
 
     </section>
 
@@ -298,76 +423,47 @@
       <div class="section-heading">
 
         <div>
+
           <h2>
             Overall League
           </h2>
 
           <p>
-            Full-season FPL standings.
+            Full-season standings.
           </p>
+
         </div>
 
       </div>
 
+
       <div
         id="overallList"
         class="standings-list"
-      ></div>
+      >
+
+        <div class="empty">
+          Loading overall table…
+        </div>
+
+      </div>
 
     </section>
 
 
     <footer class="last-updated">
+
       <span id="updated">
         Loading…
       </span>
+
     </footer>
 
   </main>
 
 
-  <nav class="bottom-nav">
-
-    <button
-      type="button"
-      class="nav-button active"
-      data-tab="payments"
-    >
-      <span>💰</span>
-      Payments
-    </button>
-
-    <button
-      type="button"
-      class="nav-button"
-      data-tab="predictions"
-    >
-      <span>🔮</span>
-      Predict
-    </button>
-
-    <button
-      type="button"
-      class="nav-button"
-      data-tab="gameweek"
-    >
-      <span>⚽</span>
-      GW
-    </button>
-
-    <button
-      type="button"
-      class="nav-button"
-      data-tab="overall"
-    >
-      <span>🏆</span>
-      Overall
-    </button>
-
-  </nav>
-
-
   <script src="/app.js"></script>
 
 </body>
+
 </html>
