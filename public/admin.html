@@ -63,24 +63,94 @@
 
     <!-- PASSWORD -->
 
-    <section class="admin-login-card">
+<section class="admin-login-card">
 
-      <label
-        class="form-label"
-        for="password"
-      >
-        ADMIN PASSWORD
-      </label>
+  <label
+    class="form-label"
+    for="password"
+  >
+    ADMIN PASSWORD
+  </label>
 
-      <input
-        id="password"
-        class="form-input"
-        type="password"
-        autocomplete="current-password"
-        placeholder="Enter password"
-      >
+  <input
+    id="password"
+    class="form-input"
+    type="password"
+    autocomplete="current-password"
+    placeholder="Enter password"
+  >
 
-    </section>
+</section>
+
+
+<!-- PAYMENT SETTINGS -->
+<!-- ADD YOUR BLOCK HERE -->
+
+<section class="admin-controls-card">
+
+  <div class="section-heading">
+
+    <h3>
+      Payment Settings
+    </h3>
+
+    <p>
+      Used for every Gameweek payment reminder.
+    </p>
+
+  </div>
+
+
+  <label
+    class="form-label"
+    for="zelleInput"
+  >
+    ZELLE PHONE / EMAIL
+  </label>
+
+  <input
+    id="zelleInput"
+    class="form-input"
+    type="text"
+    placeholder="Phone number or email"
+    autocomplete="off"
+  >
+
+
+  <div style="height:14px;"></div>
+
+
+  <label
+    class="form-label"
+    for="feeInput"
+  >
+    ENTRY FEE PER GAMEWEEK
+  </label>
+
+  <input
+    id="feeInput"
+    class="form-input"
+    type="number"
+    min="0"
+    step="0.01"
+    inputmode="decimal"
+    placeholder="20"
+  >
+
+
+  <button
+    id="saveSettings"
+    type="button"
+    class="primary-button"
+    style="
+      width:100%;
+      margin-top:14px;
+    "
+  >
+    Save Payment Settings
+  </button>
+
+</section>
 
 
     <!-- GAMEWEEK SELECT -->
