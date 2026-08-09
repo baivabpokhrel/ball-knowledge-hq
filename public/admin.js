@@ -1,15 +1,17 @@
-const $ = (id) =>
+const $ = id =>
   document.getElementById(id);
 
 const LEAGUE_ID =
   '92378';
 
 let gameweek = 1;
-
 let managers = [];
-
 let payments = [];
 
+
+/*
+  HELPERS
+*/
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -21,61 +23,129 @@ function escapeHtml(value) {
 }
 
 
-function isPaid(entryId) {
-  const payment =
+function getPayment(
+  entryId
+) {
+  return (
     payments.find(
-      (item) =>
+      item =>
         Number(
           item.entry_id
         ) ===
         Number(entryId)
-    );
-
-  return (
-    payment?.paid === true
+    ) || null
   );
 }
 
+
+function isPaid(
+  entryId
+) {
+  return (
+    getPayment(entryId)
+      ?.paid === true
+  );
+}
+
+
+function isWinner(
+  entryId
+) {
+  return (
+    getPayment(entryId)
+      ?.winner === true
+  );
+}
+
+
+/*
+  RENDER
+*/
 
 function render() {
   $('adminGw')
     .textContent =
       gameweek;
 
+  const total =
+    managers.length;
+
   const paidCount =
     managers.filter(
-      (manager) =>
+      manager =>
         isPaid(
           manager.entryId
         )
     ).length;
 
-  const total =
-    managers.length;
+  const winner =
+    managers.find(
+      manager =>
+        isWinner(
+          manager.entryId
+        )
+    );
+
 
   $('adminTotals')
-    .innerHTML =
-      `
-        <strong style="font-size:24px;">
-          ${paidCount} / ${total}
-        </strong>
+    .innerHTML = `
+      <div class="admin-summary-grid">
 
-        <span style="color:#9097a1;">
-          paid
-        </span>
-      `;
+        <div>
+          <strong>
+            ${paidCount} / ${total}
+          </strong>
+
+          <small>
+            Paid
+          </small>
+        </div>
+
+        <div>
+          <strong>
+            ${
+              winner
+                ? '🏆'
+                : '—'
+            }
+          </strong>
+
+          <small>
+            ${
+              winner
+                ? escapeHtml(
+                    winner.team
+                  )
+                : 'No winner'
+            }
+          </small>
+        </div>
+
+      </div>
+    `;
+
+
+  /*
+    Unpaid first.
+  */
 
   const sorted =
     [...managers].sort(
       (a, b) => {
+
         const aPaid =
-          isPaid(a.entryId);
+          isPaid(
+            a.entryId
+          );
 
         const bPaid =
-          isPaid(b.entryId);
+          isPaid(
+            b.entryId
+          );
 
         if (
-          aPaid !== bPaid
+          aPaid !==
+          bPaid
         ) {
           return aPaid
             ? 1
@@ -85,85 +155,146 @@ function render() {
         return String(
           a.team
         ).localeCompare(
-          String(b.team)
+          String(
+            b.team
+          )
         );
       }
     );
 
-  $('adminList').innerHTML =
-    sorted
-      .map(
-        (manager) => {
-          const paid =
-            isPaid(
-              manager.entryId
-            );
 
-          return `
-            <button
-              type="button"
-              class="payment-row ${paid ? 'is-paid' : 'is-unpaid'} admin-payment-button"
-              data-entry="${manager.entryId}"
-              data-paid="${paid}"
-              style="
-                width:100%;
-                color:inherit;
-                text-align:left;
-                cursor:pointer;
-              "
-            >
+  $('adminList')
+    .innerHTML =
+      sorted
+        .map(
+          manager => {
 
-              <div class="payment-status">
-                ${
-                  paid
-                    ? '✓'
-                    : '!'
-                }
+            const paid =
+              isPaid(
+                manager.entryId
+              );
+
+            const winner =
+              isWinner(
+                manager.entryId
+              );
+
+            return `
+              <div
+                class="
+                  admin-manager-card
+                  ${
+                    winner
+                      ? 'admin-winner'
+                      : ''
+                  }
+                "
+              >
+
+                <div class="admin-manager-head">
+
+                  <div class="manager-info">
+
+                    <strong>
+                      ${escapeHtml(manager.team)}
+                    </strong>
+
+                    <small>
+                      ${escapeHtml(manager.manager)}
+                    </small>
+
+                  </div>
+
+                  ${
+                    winner
+                      ? `
+                        <span class="winner-mini">
+                          🏆 WINNER
+                        </span>
+                      `
+                      : ''
+                  }
+
+                </div>
+
+
+                <div class="admin-actions">
+
+                  <button
+                    type="button"
+                    class="
+                      admin-action
+                      ${
+                        paid
+                          ? 'paid-action'
+                          : 'unpaid-action'
+                      }
+                    "
+                    data-action="paid"
+                    data-entry="${manager.entryId}"
+                    data-value="${!paid}"
+                  >
+                    ${
+                      paid
+                        ? '✓ PAID'
+                        : 'MARK PAID'
+                    }
+                  </button>
+
+
+                  <button
+                    type="button"
+                    class="
+                      admin-action
+                      winner-action
+                      ${
+                        winner
+                          ? 'winner-active'
+                          : ''
+                      }
+                    "
+                    data-action="winner"
+                    data-entry="${manager.entryId}"
+                    data-value="${!winner}"
+                  >
+                    ${
+                      winner
+                        ? '🏆 WINNER'
+                        : 'MARK WINNER'
+                    }
+                  </button>
+
+                </div>
+
               </div>
+            `;
+          }
+        )
+        .join('');
 
-              <div class="manager-info">
-
-                <strong>
-                  ${escapeHtml(manager.team)}
-                </strong>
-
-                <small>
-                  ${escapeHtml(manager.manager)}
-                </small>
-
-              </div>
-
-              <div class="payment-label">
-                ${
-                  paid
-                    ? 'PAID'
-                    : 'MARK PAID'
-                }
-              </div>
-
-            </button>
-          `;
-        }
-      )
-      .join('');
 
   document
     .querySelectorAll(
-      '.admin-payment-button'
+      '.admin-action'
     )
     .forEach(
-      (button) => {
+      button => {
+
         button.addEventListener(
           'click',
           () => {
-            updatePayment(
+
+            updateRecord(
               Number(
                 button.dataset
                   .entry
               ),
 
               button.dataset
-                .paid !==
+                .action,
+
+              button.dataset
+                .value ===
                 'true'
             );
           }
@@ -173,14 +304,17 @@ function render() {
 }
 
 
+/*
+  LOAD DATA
+*/
+
 async function load() {
   $('adminList')
-    .innerHTML =
-      `
-        <div class="empty">
-          Loading managers…
-        </div>
-      `;
+    .innerHTML = `
+      <div class="empty">
+        Loading managers…
+      </div>
+    `;
 
   try {
     const dashboardResponse =
@@ -205,8 +339,10 @@ async function load() {
       );
     }
 
+
     gameweek =
-      dashboard.gameweek?.id ||
+      dashboard.gameweek
+        ?.id ||
       1;
 
     managers =
@@ -215,6 +351,7 @@ async function load() {
       )
         ? dashboard.managers
         : [];
+
 
     const paymentResponse =
       await fetch(
@@ -248,22 +385,28 @@ async function load() {
     render();
 
   } catch (error) {
-    console.error(error);
+    console.error(
+      error
+    );
 
     $('adminList')
-      .innerHTML =
-        `
-          <div class="empty">
-            ${escapeHtml(error.message)}
-          </div>
-        `;
+      .innerHTML = `
+        <div class="empty">
+          ${escapeHtml(error.message)}
+        </div>
+      `;
   }
 }
 
 
-async function updatePayment(
+/*
+  UPDATE
+*/
+
+async function updateRecord(
   entryId,
-  paid
+  action,
+  value
 ) {
   const password =
     $('password')
@@ -280,28 +423,47 @@ async function updatePayment(
     return;
   }
 
+
   const manager =
     managers.find(
-      (item) =>
+      item =>
         Number(
           item.entryId
         ) ===
         Number(entryId)
     );
 
-  const action =
-    paid
-      ? 'mark as PAID'
-      : 'mark as NOT PAID';
 
-  const confirmed =
-    confirm(
-      `${manager?.team || 'Manager'}\n\n${action}?`
-    );
+  let message = '';
 
-  if (!confirmed) {
+  if (
+    action ===
+    'paid'
+  ) {
+    message =
+      value
+        ? `Mark ${manager?.team} as PAID?`
+        : `Mark ${manager?.team} as NOT PAID?`;
+  }
+
+
+  if (
+    action ===
+    'winner'
+  ) {
+    message =
+      value
+        ? `Make ${manager?.team} the GW${gameweek} winner?\n\nThis will remove any existing winner.`
+        : `Remove ${manager?.team} as winner?`;
+  }
+
+
+  if (
+    !confirm(message)
+  ) {
     return;
   }
+
 
   try {
     const response =
@@ -321,21 +483,25 @@ async function updatePayment(
               password,
               gameweek,
               entryId,
-              paid
+              action,
+              value
             })
         }
       );
+
 
     const result =
       await response
         .json();
 
+
     if (!response.ok) {
       throw new Error(
         result.error ||
-        'Unable to update payment'
+        'Unable to update'
       );
     }
+
 
     await load();
 
