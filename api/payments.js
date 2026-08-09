@@ -3,10 +3,12 @@ import {
 } from './lib/supabase.js';
 
 async function getSettings() {
+
   const rows =
     await supabaseRequest(
       'league_settings?id=eq.1&select=id,zelle_display,gw_entry_fee,updated_at'
     );
+
 
   const settings =
     Array.isArray(rows) &&
@@ -14,7 +16,9 @@ async function getSettings() {
       ? rows[0]
       : null;
 
+
   return {
+
     zelle:
       settings?.zelle_display ||
       process.env.ZELLE_DISPLAY ||
@@ -25,11 +29,8 @@ async function getSettings() {
         settings?.gw_entry_fee ??
         process.env.GW_ENTRY_FEE ??
         0
-      ),
+      )
 
-    updatedAt:
-      settings?.updated_at ||
-      null
   };
 }
 
