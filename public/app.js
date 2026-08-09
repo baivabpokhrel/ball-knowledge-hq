@@ -9,9 +9,9 @@ let paymentData = null;
 
 
 /*
-  -------------------------
+  ======================================
   HELPERS
-  -------------------------
+  ======================================
 */
 
 function escapeHtml(value) {
@@ -81,9 +81,57 @@ function standingsRow(
 
 
 /*
-  -------------------------
-  DASHBOARD
-  -------------------------
+  ======================================
+  PAYMENT HELPERS
+  ======================================
+*/
+
+function getPayment(
+  entryId
+) {
+  if (
+    !paymentData ||
+    !Array.isArray(
+      paymentData.payments
+    )
+  ) {
+    return null;
+  }
+
+  return (
+    paymentData.payments.find(
+      (item) =>
+        Number(
+          item.entry_id
+        ) ===
+        Number(entryId)
+    ) || null
+  );
+}
+
+
+function isPaid(entryId) {
+  return (
+    getPayment(entryId)
+      ?.paid === true
+  );
+}
+
+
+function isManualWinner(
+  entryId
+) {
+  return (
+    getPayment(entryId)
+      ?.winner === true
+  );
+}
+
+
+/*
+  ======================================
+  RENDER DASHBOARD
+  ======================================
 */
 
 function renderDashboard(data) {
@@ -94,7 +142,9 @@ function renderDashboard(data) {
     'Ball Knowledge Only';
 
   const managers =
-    Array.isArray(data.managers)
+    Array.isArray(
+      data.managers
+    )
       ? data.managers
       : [];
 
@@ -103,7 +153,9 @@ function renderDashboard(data) {
       `● FPL CONNECTED • ${managers.length} MANAGERS`;
 
   $('connectionStatus')
-    .classList.add('connected');
+    .classList.add(
+      'connected'
+    );
 
   $('gw').textContent =
     data.gameweek?.id ??
@@ -113,74 +165,101 @@ function renderDashboard(data) {
     data.gameweek?.id ??
     '—';
 
-  $('statusCode').textContent =
-    data.gameweek?.status
-      ?.code ||
-    '—';
+  $('statusCode')
+    .textContent =
+      data.gameweek
+        ?.status
+        ?.code ||
+      '—';
 
-  $('statusText').textContent =
-    data.gameweek?.status
-      ?.label ||
-    '';
+  $('statusText')
+    .textContent =
+      data.gameweek
+        ?.status
+        ?.label ||
+      '';
 
   const weekly =
-    Array.isArray(data.weekly)
+    Array.isArray(
+      data.weekly
+    )
       ? data.weekly
       : [];
 
   const overall =
-    Array.isArray(data.overall)
+    Array.isArray(
+      data.overall
+    )
       ? data.overall
       : [];
 
-  $('weeklyList').innerHTML =
-    weekly.length
-      ? weekly
-          .map(
-            (m, i) =>
-              standingsRow(
-                m,
-                i,
-                true
-              )
-          )
-          .join('')
-      : `
-        <div class="empty">
-          Gameweek standings will appear once scoring begins.
-        </div>
-      `;
+  $('weeklyList')
+    .innerHTML =
+      weekly.length
+        ? weekly
+            .map(
+              (manager, index) =>
+                standingsRow(
+                  manager,
+                  index,
+                  true
+                )
+            )
+            .join('')
+        : `
+          <div class="empty">
+            Gameweek standings will appear once scoring begins.
+          </div>
+        `;
 
-  $('overallList').innerHTML =
-    overall.length
-      ? overall
-          .map(
-            (m, i) =>
-              standingsRow(
-                m,
-                i,
-                false
-              )
-          )
-          .join('')
-      : `
-        <div class="empty">
-          Overall standings are not available yet.
-        </div>
-      `;
+  $('overallList')
+    .innerHTML =
+      overall.length
+        ? overall
+            .map(
+              (manager, index) =>
+                standingsRow(
+                  manager,
+                  index,
+                  false
+                )
+            )
+            .join('')
+        : `
+          <div class="empty">
+            Overall standings are not available yet.
+          </div>
+        `;
 
-  renderAwards(data);
+  renderAwards();
 
   renderPayments();
 }
 
 
-function renderAwards(data) {
+/*
+  ======================================
+  GAMEWEEK AWARDS
+  ======================================
+*/
+
+function renderAwards() {
+  if (!dashboardData) {
+    return;
+  }
+
   const status =
-    data.gameweek?.status;
+    dashboardData
+      .gameweek
+      ?.status;
 
   const awards =
-    data.awards || {};
+    dashboardData.awards ||
+    {};
+
+  /*
+    BEFORE DEADLINE
+  */
 
   if (
     status?.code ===
@@ -201,6 +280,10 @@ function renderAwards(data) {
     return;
   }
 
+  /*
+    FINAL
+  */
+
   if (status?.final) {
     const winners =
       Array.isArray(
@@ -220,8 +303,8 @@ function renderAwards(data) {
         winners.length
           ? winners
               .map(
-                (x) =>
-                  `${x.team} — ${x.gameweekPoints}`
+                winner =>
+                  `${winner.team} — ${winner.gameweekPoints} pts`
               )
               .join(', ')
           : '—';
@@ -232,6 +315,10 @@ function renderAwards(data) {
 
     return;
   }
+
+  /*
+    LIVE
+  */
 
   const provisional =
     Array.isArray(
@@ -249,8 +336,8 @@ function renderAwards(data) {
       provisional.length
         ? provisional
             .map(
-              (x) =>
-                `${x.team} — ${x.gameweekPoints}`
+              leader =>
+                `${leader.team} — ${leader.gameweekPoints} pts`
             )
             .join(', ')
         : '—';
@@ -262,35 +349,77 @@ function renderAwards(data) {
 
 
 /*
-  -------------------------
-  PAYMENTS
-  -------------------------
+  ======================================
+  FIND GW WINNER
+  ======================================
 */
 
-function isPaid(entryId) {
-  if (
-    !paymentData ||
-    !Array.isArray(
-      paymentData.payments
-    )
-  ) {
-    return false;
+function getDisplayedWinner() {
+  if (!dashboardData) {
+    return null;
   }
 
-  const payment =
-    paymentData.payments.find(
-      (item) =>
-        Number(
-          item.entry_id
-        ) ===
-        Number(entryId)
+  const managers =
+    dashboardData.managers ||
+    [];
+
+  /*
+    1. Manual/admin winner
+  */
+
+  const manual =
+    managers.find(
+      manager =>
+        isManualWinner(
+          manager.entryId
+        )
     );
 
-  return (
-    payment?.paid === true
-  );
+  if (manual) {
+    return {
+      ...manual,
+      source:
+        'manual'
+    };
+  }
+
+  /*
+    2. Official FPL winner,
+       only after FINAL
+  */
+
+  if (
+    dashboardData
+      .gameweek
+      ?.status
+      ?.final
+  ) {
+    const winners =
+      dashboardData
+        .awards
+        ?.winners ||
+      [];
+
+    if (
+      winners.length > 0
+    ) {
+      return {
+        ...winners[0],
+        source:
+          'official'
+      };
+    }
+  }
+
+  return null;
 }
 
+
+/*
+  ======================================
+  PAYMENTS
+  ======================================
+*/
 
 function renderPayments() {
   if (
@@ -315,9 +444,57 @@ function renderPayments() {
       paymentData.zelle ||
       'Not configured';
 
+
+  /*
+    WINNER
+  */
+
+  const winner =
+    getDisplayedWinner();
+
+  if (winner) {
+    $('winnerLabel')
+      .textContent =
+        winner.source ===
+        'official'
+          ? 'OFFICIAL GW WINNER'
+          : 'GW WINNER';
+
+    $('winnerTeam')
+      .textContent =
+        winner.team;
+
+    $('winnerManager')
+      .textContent =
+        winner.manager;
+
+  } else {
+    $('winnerLabel')
+      .textContent =
+        'GW WINNER';
+
+    $('winnerTeam')
+      .textContent =
+        'To be decided';
+
+    $('winnerManager')
+      .textContent =
+        dashboardData
+          .gameweek
+          ?.status
+          ?.final
+          ? 'No winner selected.'
+          : 'Winner will appear after the Gameweek.';
+  }
+
+
+  /*
+    PAYMENT TOTAL
+  */
+
   const paidManagers =
     managers.filter(
-      (manager) =>
+      manager =>
         isPaid(
           manager.entryId
         )
@@ -349,9 +526,10 @@ function renderPayments() {
   const percent =
     total > 0
       ? Math.round(
-          (paidCount /
-            total) *
-            100
+          (
+            paidCount /
+            total
+          ) * 100
         )
       : 0;
 
@@ -359,22 +537,28 @@ function renderPayments() {
     .style.width =
       `${percent}%`;
 
+
   /*
-    Show unpaid first.
-    Within each status sort by team.
+    UNPAID FIRST
   */
 
   const sorted =
     [...managers].sort(
       (a, b) => {
+
         const aPaid =
-          isPaid(a.entryId);
+          isPaid(
+            a.entryId
+          );
 
         const bPaid =
-          isPaid(b.entryId);
+          isPaid(
+            b.entryId
+          );
 
         if (
-          aPaid !== bPaid
+          aPaid !==
+          bPaid
         ) {
           return aPaid
             ? 1
@@ -384,69 +568,108 @@ function renderPayments() {
         return String(
           a.team
         ).localeCompare(
-          String(b.team)
+          String(
+            b.team
+          )
         );
       }
     );
 
-  $('paymentList').innerHTML =
-    sorted.length
-      ? sorted
-          .map(
-            (manager) => {
-              const paid =
-                isPaid(
-                  manager.entryId
-                );
 
-              return `
-                <div class="payment-row ${paid ? 'is-paid' : 'is-unpaid'}">
+  $('paymentList')
+    .innerHTML =
+      sorted.length
+        ? sorted
+            .map(
+              manager => {
 
-                  <div class="payment-status">
+                const paid =
+                  isPaid(
+                    manager.entryId
+                  );
+
+                const winner =
+                  getDisplayedWinner();
+
+                const isWinner =
+                  winner &&
+                  Number(
+                    winner.entryId
+                  ) ===
+                  Number(
+                    manager.entryId
+                  );
+
+                return `
+                  <div class="
+                    payment-row
                     ${
                       paid
-                        ? '✓'
-                        : '!'
+                        ? 'is-paid'
+                        : 'is-unpaid'
                     }
-                  </div>
-
-                  <div class="manager-info">
-
-                    <strong>
-                      ${escapeHtml(manager.team)}
-                    </strong>
-
-                    <small>
-                      ${escapeHtml(manager.manager)}
-                    </small>
-
-                  </div>
-
-                  <div class="payment-label">
                     ${
-                      paid
-                        ? 'PAID'
-                        : 'NOT PAID'
+                      isWinner
+                        ? 'is-winner'
+                        : ''
                     }
-                  </div>
+                  ">
 
-                </div>
-              `;
-            }
-          )
-          .join('')
-      : `
-        <div class="empty">
-          No FPL managers found.
-        </div>
-      `;
+                    <div class="payment-status">
+                      ${
+                        paid
+                          ? '✓'
+                          : '!'
+                      }
+                    </div>
+
+                    <div class="manager-info">
+
+                      <strong>
+                        ${escapeHtml(manager.team)}
+                      </strong>
+
+                      <small>
+                        ${escapeHtml(manager.manager)}
+                      </small>
+
+                      ${
+                        isWinner
+                          ? `
+                            <span class="winner-mini">
+                              🏆 GW WINNER
+                            </span>
+                          `
+                          : ''
+                      }
+
+                    </div>
+
+                    <div class="payment-label">
+                      ${
+                        paid
+                          ? 'PAID'
+                          : 'NOT PAID'
+                      }
+                    </div>
+
+                  </div>
+                `;
+              }
+            )
+            .join('')
+        : `
+          <div class="empty">
+            No FPL managers found.
+          </div>
+        `;
 }
 
 
 /*
-  -------------------------
-  FETCH DATA
-  -------------------------
+  ======================================
+  LOAD FPL
+  ======================================
 */
 
 async function loadDashboard() {
@@ -475,6 +698,12 @@ async function loadDashboard() {
 }
 
 
+/*
+  ======================================
+  LOAD PAYMENTS
+  ======================================
+*/
+
 async function loadPayments(
   gameweek
 ) {
@@ -497,11 +726,18 @@ async function loadPayments(
     );
   }
 
-  paymentData = data;
+  paymentData =
+    data;
 
   renderPayments();
 }
 
+
+/*
+  ======================================
+  LOAD EVERYTHING
+  ======================================
+*/
 
 async function loadEverything() {
   $('updated')
@@ -513,7 +749,9 @@ async function loadEverything() {
       await loadDashboard();
 
     const gameweek =
-      dashboard.gameweek?.id ||
+      dashboard
+        .gameweek
+        ?.id ||
       1;
 
     await loadPayments(
@@ -526,8 +764,11 @@ async function loadEverything() {
           hour: 'numeric',
           minute: '2-digit'
         })}`;
+
   } catch (error) {
-    console.error(error);
+    console.error(
+      error
+    );
 
     $('updated')
       .textContent =
@@ -551,15 +792,16 @@ async function loadEverything() {
 
 
 /*
-  -------------------------
-  ZELLE COPY
-  -------------------------
+  ======================================
+  COPY ZELLE
+  ======================================
 */
 
 $('copyZelle')
   .addEventListener(
     'click',
     async () => {
+
       const value =
         $('zelleValue')
           .textContent
@@ -568,7 +810,7 @@ $('copyZelle')
       if (
         !value ||
         value ===
-          'Not configured'
+        'Not configured'
       ) {
         return;
       }
@@ -591,8 +833,9 @@ $('copyZelle')
             button.textContent =
               'COPY';
           },
-          1600
+          1500
         );
+
       } catch {
         window.prompt(
           'Copy Zelle information:',
@@ -604,9 +847,9 @@ $('copyZelle')
 
 
 /*
-  -------------------------
+  ======================================
   NAVIGATION
-  -------------------------
+  ======================================
 */
 
 document
@@ -614,12 +857,15 @@ document
     '[data-tab]'
   )
   .forEach(
-    (button) => {
+    button => {
+
       button.addEventListener(
         'click',
         () => {
+
           const target =
-            button.dataset
+            button
+              .dataset
               .tab;
 
           document
@@ -627,13 +873,14 @@ document
               '[data-tab]'
             )
             .forEach(
-              (item) =>
+              item => {
                 item.classList
                   .toggle(
                     'active',
                     item ===
                       button
-                  )
+                  );
+              }
             );
 
           document
@@ -641,7 +888,7 @@ document
               '.panel'
             )
             .forEach(
-              (panel) => {
+              panel => {
                 panel.hidden =
                   panel.id !==
                   target;
@@ -650,7 +897,8 @@ document
 
           window.scrollTo({
             top: 0,
-            behavior: 'smooth'
+            behavior:
+              'smooth'
           });
         }
       );
@@ -658,21 +906,11 @@ document
   );
 
 
-/*
-  -------------------------
-  REFRESH
-  -------------------------
-*/
-
 $('refresh')
   .addEventListener(
     'click',
     loadEverything
   );
 
-
-/*
-  Initial load
-*/
 
 loadEverything();
