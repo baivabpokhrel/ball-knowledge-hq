@@ -1,4 +1,4 @@
-const $ = id =>
+const $ = (id) =>
   document.getElementById(id);
 
 const LEAGUE_ID = '92378';
@@ -10,11 +10,9 @@ let paymentMeta = null;
 let activeShareGw = null;
 
 
-/*
-  ====================================
-  HELPERS
-  ====================================
-*/
+/* =====================================================
+   HELPERS
+===================================================== */
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -26,26 +24,18 @@ function escapeHtml(value) {
 }
 
 
-function paymentFor(
-  gw,
-  entryId
-) {
+function paymentFor(gw, entryId) {
   return (
     allPayments.find(
-      item =>
-        Number(item.gameweek) ===
-          Number(gw) &&
-        Number(item.entry_id) ===
-          Number(entryId)
+      (item) =>
+        Number(item.gameweek) === Number(gw) &&
+        Number(item.entry_id) === Number(entryId)
     ) || null
   );
 }
 
 
-function paidFor(
-  gw,
-  entryId
-) {
+function paidFor(gw, entryId) {
   return (
     paymentFor(
       gw,
@@ -62,9 +52,8 @@ function manualWinnerForGw(gw) {
 
   const row =
     allPayments.find(
-      item =>
-        Number(item.gameweek) ===
-          Number(gw) &&
+      (item) =>
+        Number(item.gameweek) === Number(gw) &&
         item.winner === true
     );
 
@@ -74,7 +63,7 @@ function manualWinnerForGw(gw) {
 
   return (
     dashboardData.managers.find(
-      manager =>
+      (manager) =>
         Number(manager.entryId) ===
         Number(row.entry_id)
     ) || null
@@ -88,7 +77,7 @@ function unpaidManagersForGw(gw) {
   }
 
   return dashboardData.managers.filter(
-    manager =>
+    (manager) =>
       !paidFor(
         gw,
         manager.entryId
@@ -97,11 +86,9 @@ function unpaidManagersForGw(gw) {
 }
 
 
-/*
-  ====================================
-  STANDINGS
-  ====================================
-*/
+/* =====================================================
+   STANDINGS
+===================================================== */
 
 function standingsRow(
   manager,
@@ -159,11 +146,9 @@ function standingsRow(
 }
 
 
-/*
-  ====================================
-  CURRENT GW DASHBOARD
-  ====================================
-*/
+/* =====================================================
+   CURRENT GW DASHBOARD
+===================================================== */
 
 function renderDashboard() {
   const data =
@@ -174,67 +159,64 @@ function renderDashboard() {
   }
 
   const managers =
-    Array.isArray(
-      data.managers
-    )
+    Array.isArray(data.managers)
       ? data.managers
       : [];
 
   const weekly =
-    Array.isArray(
-      data.weekly
-    )
+    Array.isArray(data.weekly)
       ? data.weekly
       : [];
 
   const overall =
-    Array.isArray(
-      data.overall
-    )
+    Array.isArray(data.overall)
       ? data.overall
       : [];
 
 
-  $('league')
-    .textContent =
+  if ($('league')) {
+    $('league').textContent =
       data.league?.name ||
       'Ball Knowledge Only';
+  }
 
 
-  $('connectionStatus')
-    .textContent =
+  if ($('connectionStatus')) {
+    $('connectionStatus').textContent =
       `● FPL CONNECTED • ${managers.length} MANAGERS`;
 
-
-  $('connectionStatus')
-    .className =
+    $('connectionStatus').className =
       'connection connected';
+  }
 
 
-  $('gw')
-    .textContent =
+  if ($('gw')) {
+    $('gw').textContent =
       data.gameweek?.id ||
       '—';
+  }
 
 
-  $('statusCode')
-    .textContent =
+  if ($('statusCode')) {
+    $('statusCode').textContent =
       data.gameweek
         ?.status
         ?.code ||
       '—';
+  }
 
 
-  $('statusText')
-    .textContent =
+  if ($('statusText')) {
+    $('statusText').textContent =
       data.gameweek
         ?.status
         ?.label ||
       '';
+  }
 
 
-  $('weeklyList')
-    .innerHTML =
+  if ($('weeklyList')) {
+    $('weeklyList').innerHTML =
       weekly.length
         ? weekly
             .map(
@@ -251,10 +233,11 @@ function renderDashboard() {
             No Gameweek points yet.
           </div>
         `;
+  }
 
 
-  $('overallList')
-    .innerHTML =
+  if ($('overallList')) {
+    $('overallList').innerHTML =
       overall.length
         ? overall
             .map(
@@ -271,19 +254,22 @@ function renderDashboard() {
             No overall standings yet.
           </div>
         `;
+  }
 
 
   renderAward();
 }
 
 
-/*
-  ====================================
-  CURRENT GW AWARD
-  ====================================
-*/
+/* =====================================================
+   CURRENT GW AWARD
+===================================================== */
 
 function renderAward() {
+  if (!dashboardData) {
+    return;
+  }
+
   const data =
     dashboardData;
 
@@ -295,17 +281,20 @@ function renderAward() {
     status?.code ===
     'PRE-SEASON'
   ) {
-    $('awardTitle')
-      .textContent =
+    if ($('awardTitle')) {
+      $('awardTitle').textContent =
         'Waiting for Gameweek';
+    }
 
-    $('awardText')
-      .textContent =
+    if ($('awardText')) {
+      $('awardText').textContent =
         'No leader yet';
+    }
 
-    $('awardNote')
-      .textContent =
+    if ($('awardNote')) {
+      $('awardNote').textContent =
         'Standings begin after the deadline.';
+    }
 
     return;
   }
@@ -316,26 +305,29 @@ function renderAward() {
       data.awards?.winners ||
       [];
 
-    $('awardTitle')
-      .textContent =
+    if ($('awardTitle')) {
+      $('awardTitle').textContent =
         winners.length > 1
           ? 'Official GW Winners'
           : 'Official GW Winner';
+    }
 
-    $('awardText')
-      .textContent =
+    if ($('awardText')) {
+      $('awardText').textContent =
         winners.length
           ? winners
               .map(
-                winner =>
+                (winner) =>
                   `${winner.team} — ${winner.gameweekPoints} pts`
               )
               .join(', ')
           : '—';
+    }
 
-    $('awardNote')
-      .textContent =
+    if ($('awardNote')) {
+      $('awardNote').textContent =
         'Official after FPL checks.';
+    }
 
     return;
   }
@@ -347,34 +339,35 @@ function renderAward() {
     [];
 
 
-  $('awardTitle')
-    .textContent =
+  if ($('awardTitle')) {
+    $('awardTitle').textContent =
       'Provisional Leader';
+  }
 
 
-  $('awardText')
-    .textContent =
+  if ($('awardText')) {
+    $('awardText').textContent =
       leaders.length
         ? leaders
             .map(
-              leader =>
+              (leader) =>
                 `${leader.team} — ${leader.gameweekPoints} pts`
             )
             .join(', ')
         : '—';
+  }
 
 
-  $('awardNote')
-    .textContent =
+  if ($('awardNote')) {
+    $('awardNote').textContent =
       'Points may still change.';
+  }
 }
 
 
-/*
-  ====================================
-  PAYMENT HISTORY
-  ====================================
-*/
+/* =====================================================
+   PAYMENT HISTORY
+===================================================== */
 
 function renderPaymentHistory() {
   if (
@@ -385,15 +378,17 @@ function renderPaymentHistory() {
   }
 
 
-  $('fee')
-    .textContent =
-      paymentMeta.fee;
+  if ($('fee')) {
+    $('fee').textContent =
+      paymentMeta.fee ?? '—';
+  }
 
 
-  $('zelleValue')
-    .textContent =
+  if ($('zelleValue')) {
+    $('zelleValue').textContent =
       paymentMeta.zelle ||
       'Not configured';
+  }
 
 
   const currentGw =
@@ -406,7 +401,11 @@ function renderPaymentHistory() {
 
 
   const managers =
-    dashboardData.managers;
+    Array.isArray(
+      dashboardData.managers
+    )
+      ? dashboardData.managers
+      : [];
 
 
   const cards = [];
@@ -420,7 +419,7 @@ function renderPaymentHistory() {
 
     const paidCount =
       managers.filter(
-        manager =>
+        (manager) =>
           paidFor(
             gw,
             manager.entryId
@@ -429,8 +428,11 @@ function renderPaymentHistory() {
 
 
     const remaining =
-      managers.length -
-      paidCount;
+      Math.max(
+        0,
+        managers.length -
+        paidCount
+      );
 
 
     const winner =
@@ -445,21 +447,13 @@ function renderPaymentHistory() {
 
             const aWinner =
               winner &&
-              Number(
-                winner.entryId
-              ) ===
-              Number(
-                a.entryId
-              );
+              Number(winner.entryId) ===
+              Number(a.entryId);
 
             const bWinner =
               winner &&
-              Number(
-                winner.entryId
-              ) ===
-              Number(
-                b.entryId
-              );
+              Number(winner.entryId) ===
+              Number(b.entryId);
 
 
             if (
@@ -505,7 +499,7 @@ function renderPaymentHistory() {
           }
         )
         .map(
-          manager => {
+          (manager) => {
 
             const paid =
               paidFor(
@@ -516,12 +510,8 @@ function renderPaymentHistory() {
 
             const isWinner =
               winner &&
-              Number(
-                winner.entryId
-              ) ===
-              Number(
-                manager.entryId
-              );
+              Number(winner.entryId) ===
+              Number(manager.entryId);
 
 
             return `
@@ -680,27 +670,115 @@ function renderPaymentHistory() {
   }
 
 
-  $('paymentHistory')
-    .innerHTML =
+  if ($('paymentHistory')) {
+    $('paymentHistory').innerHTML =
       cards.join('');
+  }
 
 
   bindPaymentShareButtons();
 }
 
 
-/*
-  ====================================
-  PAYMENT REMINDER TEXT
-  ====================================
-*/
+/* =====================================================
+   REFRESH ONLY PAYMENT DATA
+===================================================== */
+
+async function refreshPaymentsOnly() {
+  if (!dashboardData) {
+    return;
+  }
+
+
+  const currentGw =
+    Number(
+      dashboardData
+        .gameweek
+        ?.id ||
+      1
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        `/api/payments?from=1&to=${currentGw}&_=${Date.now()}`,
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+
+          headers: {
+            'Cache-Control':
+              'no-cache'
+          }
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Unable to refresh payments'
+      );
+    }
+
+
+    allPayments =
+      Array.isArray(
+        data.payments
+      )
+        ? data.payments
+        : [];
+
+
+    paymentMeta =
+      data;
+
+
+    renderPaymentHistory();
+
+
+    if ($('updated')) {
+      $('updated').textContent =
+        `Payments updated ${new Date().toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        })}`;
+    }
+
+
+    console.log(
+      'Fresh payment data:',
+      data.requestId,
+      data.updatedAt
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      'Payment refresh failed:',
+      error
+    );
+  }
+}
+
+
+/* =====================================================
+   PAYMENT REMINDER TEXT
+===================================================== */
 
 function buildReminderText(gw) {
   const unpaid =
     unpaidManagersForGw(gw);
 
   const fee =
-    paymentMeta?.fee ||
+    paymentMeta?.fee ??
     '';
 
   const zelle =
@@ -723,7 +801,7 @@ function buildReminderText(gw) {
   const names =
     unpaid
       .map(
-        manager =>
+        (manager) =>
           `• ${manager.team} — ${manager.manager}`
       )
       .join('\n');
@@ -741,11 +819,9 @@ function buildReminderText(gw) {
 }
 
 
-/*
-  ====================================
-  SHARE PREVIEW
-  ====================================
-*/
+/* =====================================================
+   SHARE MODAL
+===================================================== */
 
 function openShareModal(gw) {
   activeShareGw =
@@ -756,13 +832,19 @@ function openShareModal(gw) {
     unpaidManagersForGw(gw);
 
 
-  $('shareModalTitle')
-    .textContent =
+  if ($('shareModalTitle')) {
+    $('shareModalTitle').textContent =
       `GW ${gw}`;
+  }
 
 
   const body =
     $('sharePreviewBody');
+
+
+  if (!body) {
+    return;
+  }
 
 
   if (
@@ -792,7 +874,7 @@ function openShareModal(gw) {
     const rows =
       unpaid
         .map(
-          manager => `
+          (manager) => `
             <div class="share-unpaid-row">
 
               <div class="share-warning">
@@ -828,7 +910,7 @@ function openShareModal(gw) {
           </span>
 
           <strong>
-            $${escapeHtml(paymentMeta.fee)}
+            $${escapeHtml(paymentMeta?.fee ?? '')}
           </strong>
 
         </div>
@@ -855,7 +937,7 @@ function openShareModal(gw) {
         </span>
 
         <strong>
-          ${escapeHtml(paymentMeta.zelle)}
+          ${escapeHtml(paymentMeta?.zelle || '')}
         </strong>
 
       </div>
@@ -883,13 +965,17 @@ function openShareModal(gw) {
       '.share-card-gw'
     );
 
-  cardTitle.textContent =
-    `GW ${gw} PAYMENT REMINDER`;
+
+  if (cardTitle) {
+    cardTitle.textContent =
+      `GW ${gw} PAYMENT REMINDER`;
+  }
 
 
-  $('shareModal')
-    .hidden =
+  if ($('shareModal')) {
+    $('shareModal').hidden =
       false;
+  }
 
 
   document.body
@@ -900,9 +986,10 @@ function openShareModal(gw) {
 
 
 function closeShareModal() {
-  $('shareModal')
-    .hidden =
+  if ($('shareModal')) {
+    $('shareModal').hidden =
       true;
+  }
 
   activeShareGw =
     null;
@@ -914,18 +1001,15 @@ function closeShareModal() {
 }
 
 
-/*
-  ====================================
-  COPY REMINDER
-  ====================================
-*/
+/* =====================================================
+   COPY REMINDER
+===================================================== */
 
 async function copyReminder(gw) {
   const text =
     buildReminderText(gw);
 
   try {
-
     await navigator
       .clipboard
       .writeText(text);
@@ -944,11 +1028,9 @@ async function copyReminder(gw) {
 }
 
 
-/*
-  ====================================
-  GENERATE PNG USING CANVAS
-  ====================================
-*/
+/* =====================================================
+   GENERATE PNG
+===================================================== */
 
 function wrapCanvasText(
   ctx,
@@ -983,8 +1065,7 @@ function wrapCanvasText(
 
 
     if (
-      width >
-        maxWidth &&
+      width > maxWidth &&
       line
     ) {
 
@@ -1014,11 +1095,14 @@ function createReminderCanvas(gw) {
   const unpaid =
     unpaidManagersForGw(gw);
 
-  const scale = 2;
+  const scale =
+    2;
 
-  const width = 1080;
+  const width =
+    1080;
 
-  const rowHeight = 135;
+  const rowHeight =
+    135;
 
   const baseHeight =
     unpaid.length === 0
@@ -1059,10 +1143,6 @@ function createReminderCanvas(gw) {
   );
 
 
-  /*
-    Background
-  */
-
   const gradient =
     ctx.createLinearGradient(
       0,
@@ -1099,10 +1179,6 @@ function createReminderCanvas(gw) {
   );
 
 
-  /*
-    Gold top rule
-  */
-
   ctx.fillStyle =
     '#D6AD55';
 
@@ -1113,10 +1189,6 @@ function createReminderCanvas(gw) {
     10
   );
 
-
-  /*
-    Brand
-  */
 
   ctx.fillStyle =
     '#D6AD55';
@@ -1130,10 +1202,6 @@ function createReminderCanvas(gw) {
     135
   );
 
-
-  /*
-    Title
-  */
 
   ctx.fillStyle =
     '#FFFFFF';
@@ -1157,10 +1225,6 @@ function createReminderCanvas(gw) {
     285
   );
 
-
-  /*
-    Entry and remaining
-  */
 
   ctx.fillStyle =
     '#9AA0AA';
@@ -1188,7 +1252,7 @@ function createReminderCanvas(gw) {
     '700 48px Arial';
 
   ctx.fillText(
-    `$${paymentMeta?.fee || ''}`,
+    `$${paymentMeta?.fee ?? ''}`,
     70,
     425
   );
@@ -1201,10 +1265,6 @@ function createReminderCanvas(gw) {
     425
   );
 
-
-  /*
-    Zelle
-  */
 
   ctx.fillStyle =
     '#D6AD55';
@@ -1302,16 +1362,13 @@ function createReminderCanvas(gw) {
 
 
     unpaid.forEach(
-      manager => {
-
-        /*
-          Divider
-        */
+      (manager) => {
 
         ctx.strokeStyle =
           '#272B31';
 
-        ctx.lineWidth = 2;
+        ctx.lineWidth =
+          2;
 
         ctx.beginPath();
 
@@ -1327,10 +1384,6 @@ function createReminderCanvas(gw) {
 
         ctx.stroke();
 
-
-        /*
-          Warning circle
-        */
 
         ctx.fillStyle =
           '#2A1517';
@@ -1368,10 +1421,6 @@ function createReminderCanvas(gw) {
           'left';
 
 
-        /*
-          Team
-        */
-
         ctx.fillStyle =
           '#FFFFFF';
 
@@ -1384,10 +1433,6 @@ function createReminderCanvas(gw) {
           y + 53
         );
 
-
-        /*
-          Manager
-        */
 
         ctx.fillStyle =
           '#969DA6';
@@ -1409,10 +1454,6 @@ function createReminderCanvas(gw) {
   }
 
 
-  /*
-    Footer
-  */
-
   ctx.fillStyle =
     '#D6AD55';
 
@@ -1430,22 +1471,22 @@ function createReminderCanvas(gw) {
 }
 
 
-/*
-  ====================================
-  SHARE GENERATED IMAGE
-  ====================================
-*/
+/* =====================================================
+   SHARE GENERATED IMAGE
+===================================================== */
 
 async function shareReminderImage(gw) {
   const button =
     $('shareReminderImage');
 
 
-  button.disabled =
-    true;
+  if (button) {
+    button.disabled =
+      true;
 
-  button.textContent =
-    'Creating…';
+    button.textContent =
+      'Creating…';
+  }
 
 
   try {
@@ -1456,7 +1497,7 @@ async function shareReminderImage(gw) {
 
     const blob =
       await new Promise(
-        resolve =>
+        (resolve) =>
           canvas.toBlob(
             resolve,
             'image/png',
@@ -1474,9 +1515,7 @@ async function shareReminderImage(gw) {
 
     const file =
       new File(
-        [
-          blob
-        ],
+        [blob],
         `ball-knowledge-gw${gw}-payment-reminder.png`,
         {
           type:
@@ -1484,10 +1523,6 @@ async function shareReminderImage(gw) {
         }
       );
 
-
-    /*
-      Native mobile sharing
-    */
 
     if (
       navigator.share &&
@@ -1504,19 +1539,12 @@ async function shareReminderImage(gw) {
         text:
           `Ball Knowledge Only — GW${gw} payment reminder`,
 
-        files: [
-          file
-        ]
+        files: [file]
       });
 
       return;
     }
 
-
-    /*
-      Fallback:
-      generate downloadable image
-    */
 
     const url =
       URL.createObjectURL(
@@ -1545,7 +1573,6 @@ async function shareReminderImage(gw) {
 
     link.click();
 
-
     link.remove();
 
 
@@ -1557,12 +1584,8 @@ async function shareReminderImage(gw) {
       1000
     );
 
-  } catch (error) {
 
-    /*
-      User cancelling the share sheet
-      is not really an error.
-    */
+  } catch (error) {
 
     if (
       error.name !==
@@ -1575,22 +1598,23 @@ async function shareReminderImage(gw) {
       );
     }
 
+
   } finally {
 
-    button.disabled =
-      false;
+    if (button) {
+      button.disabled =
+        false;
 
-    button.textContent =
-      'Share Image';
+      button.textContent =
+        'Share Image';
+    }
   }
 }
 
 
-/*
-  ====================================
-  SHARE BUTTON EVENTS
-  ====================================
-*/
+/* =====================================================
+   SHARE BUTTON EVENTS
+===================================================== */
 
 function bindPaymentShareButtons() {
 
@@ -1599,7 +1623,7 @@ function bindPaymentShareButtons() {
       '[data-share-gw]'
     )
     .forEach(
-      button => {
+      (button) => {
 
         button.addEventListener(
           'click',
@@ -1625,7 +1649,7 @@ function bindPaymentShareButtons() {
       '[data-copy-gw]'
     )
     .forEach(
-      button => {
+      (button) => {
 
         button.addEventListener(
           'click',
@@ -1667,28 +1691,27 @@ function bindPaymentShareButtons() {
 }
 
 
-/*
-  ====================================
-  LOAD EVERYTHING
-  ====================================
-*/
+/* =====================================================
+   LOAD EVERYTHING
+===================================================== */
 
 async function loadEverything() {
 
-  $('updated')
-    .textContent =
+  if ($('updated')) {
+    $('updated').textContent =
       'Updating…';
+  }
 
 
   try {
 
     /*
-      FPL
+      FPL DASHBOARD
     */
 
     const dashboardResponse =
       await fetch(
-        `/api/dashboard?leagueId=${LEAGUE_ID}`,
+        `/api/dashboard?leagueId=${LEAGUE_ID}&_=${Date.now()}`,
         {
           cache:
             'no-store'
@@ -1702,7 +1725,6 @@ async function loadEverything() {
 
 
     if (!dashboardResponse.ok) {
-
       throw new Error(
         dashboard.error ||
         'Unable to load FPL'
@@ -1714,66 +1736,23 @@ async function loadEverything() {
       dashboard;
 
 
-    const currentGw =
-      Number(
-        dashboard
-          .gameweek
-          ?.id ||
-        1
-      );
+    renderDashboard();
 
 
     /*
-      Payments
+      PAYMENTS
     */
 
-    const paymentResponse =
-      await fetch(
-        `/api/payments?from=1&to=${currentGw}`,
-        {
-          cache:
-            'no-store'
-        }
-      );
+    await refreshPaymentsOnly();
 
 
-    const paymentJson =
-      await paymentResponse
-        .json();
-
-
-    if (!paymentResponse.ok) {
-
-      throw new Error(
-        paymentJson.error ||
-        'Unable to load payments'
-      );
-    }
-
-
-    allPayments =
-      Array.isArray(
-        paymentJson.payments
-      )
-        ? paymentJson.payments
-        : [];
-
-
-    paymentMeta =
-      paymentJson;
-
-
-    renderDashboard();
-
-    renderPaymentHistory();
-
-
-    $('updated')
-      .textContent =
+    if ($('updated')) {
+      $('updated').textContent =
         `Updated ${new Date().toLocaleTimeString([], {
           hour: 'numeric',
           minute: '2-digit'
         })}`;
+    }
 
 
   } catch (error) {
@@ -1783,93 +1762,98 @@ async function loadEverything() {
     );
 
 
-    $('updated')
-      .textContent =
+    if ($('updated')) {
+      $('updated').textContent =
         error.message;
+    }
 
 
-    $('connectionStatus')
-      .textContent =
+    if ($('connectionStatus')) {
+      $('connectionStatus').textContent =
         '● CONNECTION ERROR';
 
-
-    $('connectionStatus')
-      .className =
+      $('connectionStatus').className =
         'connection error';
+    }
   }
 }
 
 
-/*
-  ====================================
-  COPY ZELLE
-  ====================================
-*/
+/* =====================================================
+   COPY ZELLE
+===================================================== */
 
-$('copyZelle')
-  .addEventListener(
-    'click',
-    async () => {
+if ($('copyZelle')) {
+  $('copyZelle')
+    .addEventListener(
+      'click',
+      async () => {
 
-      const value =
-        $('zelleValue')
-          .textContent
-          .trim();
-
-
-      if (!value) {
-        return;
-      }
+        const value =
+          $('zelleValue')
+            ?.textContent
+            ?.trim() ||
+          '';
 
 
-      try {
+        if (
+          !value ||
+          value ===
+            'Not configured'
+        ) {
+          return;
+        }
 
-        await navigator
-          .clipboard
-          .writeText(
-            value
+
+        try {
+
+          await navigator
+            .clipboard
+            .writeText(
+              value
+            );
+
+
+          $('copyZelle')
+            .textContent =
+              'COPIED ✓';
+
+
+          setTimeout(
+            () => {
+
+              $('copyZelle')
+                .textContent =
+                  'COPY';
+
+            },
+            1500
           );
 
 
-        $('copyZelle')
-          .textContent =
-            'COPIED ✓';
+        } catch {
 
-
-        setTimeout(
-          () => {
-
-            $('copyZelle')
-              .textContent =
-                'COPY';
-
-          },
-          1500
-        );
-
-
-      } catch {
-
-        window.prompt(
-          'Copy Zelle:',
-          value
-        );
+          window.prompt(
+            'Copy Zelle:',
+            value
+          );
+        }
       }
-    }
-  );
+    );
+}
 
 
-/*
-  ====================================
-  MODAL EVENTS
-  ====================================
-*/
+/* =====================================================
+   SHARE MODAL EVENTS
+===================================================== */
 
-$('closeShare')
-  .addEventListener(
-    'click',
-    closeShareModal
-  );
+if ($('closeShare')) {
+  $('closeShare')
+    .addEventListener(
+      'click',
+      closeShareModal
+    );
+}
 
 
 document
@@ -1877,172 +1861,92 @@ document
     '[data-close-share]'
   )
   .forEach(
-    element => {
+    (element) => {
 
-      element
-        .addEventListener(
-          'click',
-          closeShareModal
-        );
+      element.addEventListener(
+        'click',
+        closeShareModal
+      );
     }
   );
 
 
-$('copyReminder')
-  .addEventListener(
-    'click',
-    async () => {
+if ($('copyReminder')) {
+  $('copyReminder')
+    .addEventListener(
+      'click',
+      async () => {
 
-      if (!activeShareGw) {
-        return;
+        if (!activeShareGw) {
+          return;
+        }
+
+
+        const success =
+          await copyReminder(
+            activeShareGw
+          );
+
+
+        if (success) {
+
+          $('copyReminder')
+            .textContent =
+              'Copied ✓';
+
+
+          setTimeout(
+            () => {
+
+              $('copyReminder')
+                .textContent =
+                  'Copy Text';
+
+            },
+            1500
+          );
+        }
       }
+    );
+}
 
 
-      const success =
-        await copyReminder(
+if ($('shareReminderImage')) {
+  $('shareReminderImage')
+    .addEventListener(
+      'click',
+      () => {
+
+        if (!activeShareGw) {
+          return;
+        }
+
+
+        shareReminderImage(
           activeShareGw
         );
-
-
-      if (success) {
-
-        $('copyReminder')
-          .textContent =
-            'Copied ✓';
-
-
-        setTimeout(
-          () => {
-
-            $('copyReminder')
-              .textContent =
-                'Copy Text';
-
-          },
-          1500
-        );
       }
-    }
-  );
-
-
-$('shareReminderImage')
-  .addEventListener(
-    'click',
-    () => {
-
-      if (!activeShareGw) {
-        return;
-      }
-
-
-      shareReminderImage(
-        activeShareGw
-      );
-    }
-  );
-
-async function refreshPaymentsOnly() {
-
-  if (!dashboardData) {
-    return;
-  }
-
-
-  const currentGw =
-    Number(
-      dashboardData
-        .gameweek
-        ?.id ||
-      1
     );
-
-
-  try {
-
-    const response =
-      await fetch(
-        `/api/payments?from=1&to=${currentGw}&_=${Date.now()}`,
-        {
-          method: 'GET',
-
-          cache: 'no-store',
-
-          headers: {
-            'Cache-Control':
-              'no-cache'
-          }
-        }
-      );
-
-
-    const data =
-      await response.json();
-
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-        'Unable to refresh payments'
-      );
-    }
-
-
-    allPayments =
-      Array.isArray(
-        data.payments
-      )
-        ? data.payments
-        : [];
-
-
-    paymentMeta =
-      data;
-
-
-    /*
-      Immediately repaint payment screen.
-    */
-
-    renderPaymentHistory();
-
-
-    console.log(
-      'Payments refreshed:',
-      new Date(),
-      data.requestId
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      'Payment refresh failed:',
-      error
-    );
-  }
 }
-/*
-  ====================================
-  NAVIGATION
-  ====================================
-*/
+
+
+/* =====================================================
+   NAVIGATION
+===================================================== */
 
 document
   .querySelectorAll(
     '[data-tab]'
   )
   .forEach(
-    button => {
+    (button) => {
 
       button.addEventListener(
         'click',
-        () => {
+        async () => {
 
           const tab =
-            button
-              .dataset
-              .tab;
+            button.dataset.tab;
 
 
           document
@@ -2050,13 +1954,12 @@ document
               '[data-tab]'
             )
             .forEach(
-              item => {
+              (item) => {
 
                 item.classList
                   .toggle(
                     'active',
-                    item ===
-                      button
+                    item === button
                   );
               }
             );
@@ -2067,7 +1970,7 @@ document
               '.panel'
             )
             .forEach(
-              panel => {
+              (panel) => {
 
                 panel.hidden =
                   panel.id !==
@@ -2076,9 +1979,24 @@ document
             );
 
 
+          /*
+            IMPORTANT:
+            Every time Payments is opened,
+            immediately fetch fresh DB state.
+          */
+
+          if (
+            tab ===
+            'payments'
+          ) {
+            await refreshPaymentsOnly();
+          }
+
+
           window.scrollTo({
             top: 0,
-            behavior: 'smooth'
+            behavior:
+              'smooth'
           });
         }
       );
@@ -2086,21 +2004,76 @@ document
   );
 
 
+/* =====================================================
+   MAIN REFRESH BUTTON
+===================================================== */
+
+if ($('refresh')) {
+  $('refresh')
+    .addEventListener(
+      'click',
+      loadEverything
+    );
+}
+
+
+/* =====================================================
+   REFRESH WHEN USER RETURNS TO PAGE
+===================================================== */
+
+document.addEventListener(
+  'visibilitychange',
+  () => {
+
+    if (
+      document.visibilityState ===
+        'visible' &&
+      dashboardData
+    ) {
+      refreshPaymentsOnly();
+    }
+  }
+);
+
+
 /*
-  ====================================
-  REFRESH
-  ====================================
+  Also helpful for Safari/iPhone
+  when going back to an already-open page.
 */
 
-$('refresh')
-  .addEventListener(
-    'click',
-    loadEverything
-  );
+window.addEventListener(
+  'pageshow',
+  () => {
+
+    if (dashboardData) {
+      refreshPaymentsOnly();
+    }
+  }
+);
 
 
-/*
-  START
-*/
+/* =====================================================
+   LIGHT AUTOMATIC PAYMENT REFRESH
+===================================================== */
+
+setInterval(
+  () => {
+
+    if (
+      document.visibilityState ===
+        'visible' &&
+      dashboardData
+    ) {
+      refreshPaymentsOnly();
+    }
+
+  },
+  30000
+);
+
+
+/* =====================================================
+   START APP
+===================================================== */
 
 loadEverything();
