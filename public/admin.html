@@ -26,9 +26,12 @@
 
 </head>
 
+
 <body>
 
   <main class="app">
+
+    <!-- HEADER -->
 
     <header class="topbar">
 
@@ -51,6 +54,7 @@
 
       </div>
 
+
       <a
         href="/"
         class="small-link-button"
@@ -61,99 +65,29 @@
     </header>
 
 
-    <!-- PASSWORD -->
+    <!-- ADMIN PASSWORD -->
 
-<section class="admin-login-card">
+    <section class="admin-login-card">
 
-  <label
-    class="form-label"
-    for="password"
-  >
-    ADMIN PASSWORD
-  </label>
+      <label
+        class="form-label"
+        for="password"
+      >
+        ADMIN PASSWORD
+      </label>
 
-  <input
-    id="password"
-    class="form-input"
-    type="password"
-    autocomplete="current-password"
-    placeholder="Enter password"
-  >
+      <input
+        id="password"
+        class="form-input"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Enter password"
+      >
 
-</section>
-
-
-<!-- PAYMENT SETTINGS -->
-<!-- ADD YOUR BLOCK HERE -->
-
-<section class="admin-controls-card">
-
-  <div class="section-heading">
-
-    <h3>
-      Payment Settings
-    </h3>
-
-    <p>
-      Used for every Gameweek payment reminder.
-    </p>
-
-  </div>
+    </section>
 
 
-  <label
-    class="form-label"
-    for="zelleInput"
-  >
-    ZELLE PHONE / EMAIL
-  </label>
-
-  <input
-    id="zelleInput"
-    class="form-input"
-    type="text"
-    placeholder="Phone number or email"
-    autocomplete="off"
-  >
-
-
-  <div style="height:14px;"></div>
-
-
-  <label
-    class="form-label"
-    for="feeInput"
-  >
-    ENTRY FEE PER GAMEWEEK
-  </label>
-
-  <input
-    id="feeInput"
-    class="form-input"
-    type="number"
-    min="0"
-    step="0.01"
-    inputmode="decimal"
-    placeholder="20"
-  >
-
-
-  <button
-    id="saveSettings"
-    type="button"
-    class="primary-button"
-    style="
-      width:100%;
-      margin-top:14px;
-    "
-  >
-    Save Payment Settings
-  </button>
-
-</section>
-
-
-    <!-- GAMEWEEK SELECT -->
+    <!-- SELECT GW -->
 
     <section class="admin-controls-card">
 
@@ -169,8 +103,9 @@
         class="form-input"
       ></select>
 
+
       <p class="admin-helper">
-        Changes below are NOT saved until you press Save Changes.
+        Winner, Zelle and payment changes are saved together.
       </p>
 
     </section>
@@ -182,7 +117,7 @@
     ></div>
 
 
-    <!-- GW SUMMARY -->
+    <!-- GAMEWEEK EDITOR -->
 
     <section class="admin-edit-card">
 
@@ -202,6 +137,7 @@
           </h2>
 
         </div>
+
 
         <div class="admin-count">
 
@@ -243,7 +179,52 @@
       </div>
 
 
+      <!-- ZELLE FOR THIS GW -->
+
+      <div class="winner-select-section">
+
+        <label
+          class="form-label"
+          for="zelleInput"
+        >
+          GW
+          <span id="zelleGwLabel">
+            —
+          </span>
+          WINNER'S ZELLE
+        </label>
+
+
+        <input
+          id="zelleInput"
+          class="form-input"
+          type="text"
+          placeholder="Winner's phone number or email"
+          autocomplete="off"
+        >
+
+
+        <p class="admin-helper">
+          This Zelle is stored only for this Gameweek. Entry fee: $20.
+        </p>
+
+      </div>
+
+
       <!-- MANAGERS -->
+
+      <div class="section-heading">
+
+        <h3>
+          Payments
+        </h3>
+
+        <p>
+          Check everyone who has paid for this Gameweek.
+        </p>
+
+      </div>
+
 
       <div
         id="adminManagerList"
@@ -257,7 +238,7 @@
       </div>
 
 
-      <!-- SAVE BAR -->
+      <!-- SAVE -->
 
       <div class="admin-save-area">
 
@@ -269,12 +250,13 @@
           Undo Changes
         </button>
 
+
         <button
           id="saveChanges"
           type="button"
           class="primary-button"
         >
-          Save Changes
+          Save GW
         </button>
 
       </div>
@@ -282,7 +264,7 @@
     </section>
 
 
-    <!-- QUICK STATUS -->
+    <!-- ALL GAMEWEEKS -->
 
     <section class="admin-history-section">
 
@@ -291,8 +273,9 @@
       </h3>
 
       <p>
-        Quickly see which weeks still have unpaid players.
+        Tap a Gameweek to review or edit its winner, Zelle and payments.
       </p>
+
 
       <div
         id="adminGwHistory"
@@ -313,7 +296,7 @@
   </main>
 
 
-  <script src="/admin.js"></script>
+  <script src="/admin.js?v=20"></script>
 
 </body>
 
