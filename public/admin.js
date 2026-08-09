@@ -1,8 +1,6 @@
-const $ = id =>
-  document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
-const LEAGUE_ID =
-  '92378';
+const LEAGUE_ID = '92378';
 
 let currentGw = 1;
 let selectedGw = 1;
@@ -13,12 +11,15 @@ let allPayments = [];
 let originalDraft = null;
 let draft = null;
 
+let paymentSettings = {
+  zelle: '',
+  fee: 0
+};
 
-/*
-  ======================================
-  HELPERS
-  ======================================
-*/
+
+/* =====================================================
+   HELPERS
+===================================================== */
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -30,18 +31,16 @@ function escapeHtml(value) {
 }
 
 
-function showMessage(
-  message,
-  type = ''
-) {
-  const el =
-    $('adminMessage');
+function showMessage(message, type = '') {
+  const el = $('adminMessage');
 
-  el.textContent =
-    message;
+  if (!el) {
+    console.log(message);
+    return;
+  }
 
-  el.className =
-    'admin-message';
+  el.textContent = message;
+  el.className = 'admin-message';
 
   if (type) {
     el.classList.add(type);
@@ -49,46 +48,49 @@ function showMessage(
 }
 
 
-/*
-  ======================================
-  STORED PAYMENT HELPERS
-  ======================================
-*/
+function setLoadingMessage(message) {
+  const list = $('adminManagerList');
 
-function getStoredPayment(
-  gw,
-  entryId
-) {
+  if (!list) return;
+
+  list.innerHTML = `
+    <div class="empty">
+      ${escapeHtml(message)}
+    </div>
+  `;
+}
+
+
+/* =====================================================
+   LOCAL PAYMENT LOOKUPS
+===================================================== */
+
+function getStoredPayment(gw, entryId) {
   return (
     allPayments.find(
-      item =>
-        Number(item.gameweek) ===
-          Number(gw) &&
-        Number(item.entry_id) ===
-          Number(entryId)
+      (item) =>
+        Number(item.gameweek) === Number(gw) &&
+        Number(item.entry_id) === Number(entryId)
     ) || null
   );
 }
 
 
 function winnerForGw(gw) {
-  const row =
-    allPayments.find(
-      item =>
-        Number(item.gameweek) ===
-          Number(gw) &&
-        item.winner === true
-    );
+  const payment = allPayments.find(
+    (item) =>
+      Number(item.gameweek) === Number(gw) &&
+      item.winner === true
+  );
 
-  if (!row) {
+  if (!payment) {
     return null;
   }
 
   return (
     managers.find(
-      manager =>
-        Number(manager.entryId) ===
-        Number(row.entry_id)
+      (manager) =>
+        Number(manager.entryId) === Number(payment.entry_id)
     ) || null
   );
 }
@@ -96,97 +98,58 @@ function winnerForGw(gw) {
 
 function paidCountForGw(gw) {
   return managers.filter(
-    manager =>
-      getStoredPayment(
-        gw,
-        manager.entryId
-      )?.paid === true
+    (manager) =>
+      getStoredPayment(gw, manager.entryId)?.paid === true
   ).length;
 }
 
 
-/*
-  ======================================
-  REPLACE ONE GW IN LOCAL CACHE
-  ======================================
-*/
+/* =====================================================
+   UPDATE LOCAL CACHE AFTER SAVE
+===================================================== */
 
-function replaceGwPayments(
-  gw,
-  rows
-) {
-  /*
-    Remove old local rows for this GW.
-  */
-
-  allPayments =
-    allPayments.filter(
-      item =>
-        Number(item.gameweek) !==
-        Number(gw)
-    );
-
-  /*
-    Insert the freshly verified rows
-    returned directly by Supabase.
-  */
+function replaceGwPayments(gw, rows) {
+  allPayments = allPayments.filter(
+    (item) =>
+      Number(item.gameweek) !== Number(gw)
+  );
 
   if (Array.isArray(rows)) {
-    allPayments.push(
-      ...rows
-    );
+    allPayments.push(...rows);
   }
 }
 
 
-/*
-  ======================================
-  DRAFT
-  ======================================
-*/
+/* =====================================================
+   DRAFT
+===================================================== */
 
 function buildDraft(gw) {
   const paymentMap = {};
 
-  managers.forEach(
-    manager => {
-      const stored =
-        getStoredPayment(
-          gw,
-          manager.entryId
-        );
+  managers.forEach((manager) => {
+    const stored = getStoredPayment(
+      gw,
+      manager.entryId
+    );
 
-      paymentMap[
-        manager.entryId
-      ] = {
-        paid:
-          stored?.paid === true,
+    paymentMap[manager.entryId] = {
+      paid: stored?.paid === true,
+      paidAt: stored?.paid_at || null
+    };
+  });
 
-        paidAt:
-          stored?.paid_at ||
-          null
-      };
-    }
-  );
-
-
-  const winner =
-    winnerForGw(gw);
-
+  const winner = winnerForGw(gw);
 
   return {
-    gameweek:
-      gw,
+    gameweek: gw,
 
     winnerEntryId:
       winner
-        ? Number(
-            winner.entryId
-          )
+        ? Number(winner.entryId)
         : null,
 
-    payments:
-      paymentMap
+    payments: paymentMap
   };
 }
 
@@ -198,15 +161,14 @@ function cloneDraft(value) {
 }
 
 
-/*
-  ======================================
-  GW DROPDOWN
-  ======================================
-*/
+/* =====================================================
+   GAMEWEEK SELECT
+===================================================== */
 
 function buildGameweekSelect() {
-  const select =
-    $('gameweekSelect');
+  const select = $('gameweekSelect');
+
+  if (!select) return;
 
   select.innerHTML = '';
 
@@ -216,21 +178,16 @@ function buildGameweekSelect() {
     gw--
   ) {
     const option =
-      document.createElement(
-        'option'
-      );
+      document.createElement('option');
 
-    option.value =
-      gw;
+    option.value = String(gw);
 
     option.textContent =
       gw === currentGw
         ? `GW ${gw} — Current`
         : `GW ${gw}`;
 
-    select.appendChild(
-      option
-    );
+    select.appendChild(option);
   }
 
   select.value =
@@ -238,15 +195,16 @@ function buildGameweekSelect() {
 }
 
 
-/*
-  ======================================
-  WINNER DROPDOWN
-  ======================================
-*/
+/* =====================================================
+   WINNER SELECT
+===================================================== */
 
 function buildWinnerSelect() {
-  const select =
-    $('winnerSelect');
+  const select = $('winnerSelect');
+
+  if (!select || !draft) {
+    return;
+  }
 
   select.innerHTML = `
     <option value="">
@@ -254,77 +212,60 @@ function buildWinnerSelect() {
     </option>
   `;
 
-
-  managers
-    .slice()
-    .sort(
-      (a, b) =>
-        String(a.team)
-          .localeCompare(
-            String(b.team)
-          )
+  [...managers]
+    .sort((a, b) =>
+      String(a.team).localeCompare(
+        String(b.team)
+      )
     )
-    .forEach(
-      manager => {
-        const option =
-          document.createElement(
-            'option'
-          );
+    .forEach((manager) => {
+      const option =
+        document.createElement('option');
 
-        option.value =
-          manager.entryId;
+      option.value =
+        String(manager.entryId);
 
-        option.textContent =
-          `${manager.team} — ${manager.manager}`;
+      option.textContent =
+        `${manager.team} — ${manager.manager}`;
 
-        select.appendChild(
-          option
-        );
-      }
-    );
-
+      select.appendChild(option);
+    });
 
   select.value =
-    draft?.winnerEntryId
-      ? String(
-          draft.winnerEntryId
-        )
+    draft.winnerEntryId
+      ? String(draft.winnerEntryId)
       : '';
 }
 
 
-/*
-  ======================================
-  RENDER EDITOR
-  ======================================
-*/
+/* =====================================================
+   RENDER EDITOR
+===================================================== */
 
 function renderEditor() {
   if (!draft) {
     return;
   }
 
-
-  $('editingGw')
-    .textContent =
+  if ($('editingGw')) {
+    $('editingGw').textContent =
       selectedGw;
-
+  }
 
   buildWinnerSelect();
 
-
   const paidCount =
     managers.filter(
-      manager =>
+      (manager) =>
         draft.payments[
           manager.entryId
         ]?.paid === true
     ).length;
 
-
-  $('draftPaidCount')
-    .textContent =
+  if ($('draftPaidCount')) {
+    $('draftPaidCount').textContent =
       `${paidCount}/${managers.length}`;
+  }
 
 
   const sorted =
@@ -340,162 +281,153 @@ function renderEditor() {
             b.entryId
           ]?.paid === true;
 
-
-        if (
-          aPaid !== bPaid
-        ) {
-          return aPaid
-            ? 1
-            : -1;
+        if (aPaid !== bPaid) {
+          return aPaid ? 1 : -1;
         }
 
-
-        return String(
-          a.team
-        ).localeCompare(
-          String(
-            b.team
-          )
-        );
+        return String(a.team)
+          .localeCompare(
+            String(b.team)
+          );
       }
     );
 
 
-  $('adminManagerList')
-    .innerHTML =
-      sorted.map(
-        manager => {
-
-          const paid =
-            draft.payments[
-              manager.entryId
-            ]?.paid === true;
+  if (!$('adminManagerList')) {
+    return;
+  }
 
 
-          const winner =
-            Number(
-              draft.winnerEntryId
-            ) ===
-            Number(
-              manager.entryId
-            );
+  $('adminManagerList').innerHTML =
+    sorted.length
+      ? sorted
+          .map((manager) => {
+            const paid =
+              draft.payments[
+                manager.entryId
+              ]?.paid === true;
 
+            const winner =
+              Number(
+                draft.winnerEntryId
+              ) ===
+              Number(
+                manager.entryId
+              );
 
-          return `
-            <label
-              class="
-                admin-manager-row
-                ${paid ? 'paid-row' : ''}
-                ${winner ? 'winner-row' : ''}
-              "
-            >
-
-              <input
-                type="checkbox"
-
-                class="draft-paid"
-
-                data-entry="${manager.entryId}"
-
-                ${paid ? 'checked' : ''}
+            return `
+              <label
+                class="
+                  admin-manager-row
+                  ${paid ? 'paid-row' : ''}
+                  ${winner ? 'winner-row' : ''}
+                "
               >
 
+                <input
+                  type="checkbox"
+                  class="draft-paid"
+                  data-entry="${manager.entryId}"
+                  ${paid ? 'checked' : ''}
+                >
 
-              <div class="manager-info">
+                <div class="manager-info">
 
-                <strong>
-                  ${escapeHtml(manager.team)}
-                </strong>
+                  <strong>
+                    ${escapeHtml(manager.team)}
+                  </strong>
 
-                <small>
-                  ${escapeHtml(manager.manager)}
-                </small>
+                  <small>
+                    ${escapeHtml(manager.manager)}
+                  </small>
 
-              </div>
+                </div>
 
+                <div class="admin-row-state">
 
-              <div class="admin-row-state">
-
-                ${
-                  winner
-                    ? `
-                      <span class="winner-chip">
-                        🏆 WINNER
-                      </span>
-                    `
-                    : paid
+                  ${
+                    winner
                       ? `
-                        <span class="paid-chip">
-                          PAID
+                        <span class="winner-chip">
+                          🏆 WINNER
                         </span>
                       `
-                      : `
-                        <span class="unpaid-chip">
-                          NOT PAID
-                        </span>
-                      `
-                }
+                      : paid
+                        ? `
+                          <span class="paid-chip">
+                            PAID
+                          </span>
+                        `
+                        : `
+                          <span class="unpaid-chip">
+                            NOT PAID
+                          </span>
+                        `
+                  }
 
-              </div>
+                </div>
 
-            </label>
-          `;
-        }
-      )
-      .join('');
+              </label>
+            `;
+          })
+          .join('')
+      : `
+        <div class="empty">
+          No managers returned by FPL.
+        </div>
+      `;
 
 
   document
-    .querySelectorAll(
-      '.draft-paid'
-    )
-    .forEach(
-      checkbox => {
+    .querySelectorAll('.draft-paid')
+    .forEach((checkbox) => {
 
-        checkbox.addEventListener(
-          'change',
-          () => {
+      checkbox.addEventListener(
+        'change',
+        () => {
 
-            const entryId =
-              Number(
-                checkbox.dataset.entry
-              );
-
-
-            draft.payments[
-              entryId
-            ].paid =
-              checkbox.checked;
-
-
-            /*
-              Update immediately.
-              Still NOT saved to DB.
-            */
-
-            renderEditor();
-
-
-            showMessage(
-              'Unsaved changes',
-              'warning'
+          const entryId =
+            Number(
+              checkbox.dataset.entry
             );
+
+          if (
+            !draft.payments[entryId]
+          ) {
+            draft.payments[entryId] = {
+              paid: false,
+              paidAt: null
+            };
           }
-        );
-      }
-    );
+
+          draft.payments[
+            entryId
+          ].paid =
+            checkbox.checked;
+
+          renderEditor();
+
+          showMessage(
+            'Unsaved changes',
+            'warning'
+          );
+        }
+      );
+    });
 }
 
 
-/*
-  ======================================
-  HISTORY
-  ======================================
-*/
+/* =====================================================
+   HISTORY
+===================================================== */
 
 function renderHistory() {
-  const rows = [];
+  const container =
+    $('adminGwHistory');
 
+  if (!container) return;
+
+  const rows = [];
 
   for (
     let gw = currentGw;
@@ -517,13 +449,10 @@ function renderHistory() {
     const winner =
       winnerForGw(gw);
 
-
     rows.push(`
       <button
         type="button"
-
         class="history-gw-row"
-
         data-history-gw="${gw}"
       >
 
@@ -575,145 +504,274 @@ function renderHistory() {
   }
 
 
-  $('adminGwHistory')
-    .innerHTML =
-      rows.join('');
+  container.innerHTML =
+    rows.join('');
 
 
   document
     .querySelectorAll(
       '[data-history-gw]'
     )
-    .forEach(
-      button => {
+    .forEach((button) => {
 
-        button.addEventListener(
-          'click',
-          () => {
+      button.addEventListener(
+        'click',
+        () => {
 
-            selectedGw =
-              Number(
-                button.dataset.historyGw
-              );
+          selectedGw =
+            Number(
+              button.dataset
+                .historyGw
+            );
 
-
-            $('gameweekSelect')
-              .value =
-                String(
-                  selectedGw
-                );
-
-
-            loadDraft();
-
-
-            window.scrollTo({
-              top: 0,
-              behavior: 'smooth'
-            });
+          if ($('gameweekSelect')) {
+            $('gameweekSelect').value =
+              String(selectedGw);
           }
-        );
-      }
-    );
+
+          loadDraft();
+
+          window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        }
+      );
+    });
 }
 
 
-/*
-  ======================================
-  LOAD DRAFT
-  ======================================
-*/
+/* =====================================================
+   LOAD DRAFT
+===================================================== */
 
 function loadDraft() {
   draft =
-    buildDraft(
-      selectedGw
-    );
-
+    buildDraft(selectedGw);
 
   originalDraft =
-    cloneDraft(
-      draft
-    );
-
-
-  showMessage('');
-
+    cloneDraft(draft);
 
   renderEditor();
+
+  showMessage('');
 }
 
 
-/*
-  ======================================
-  WINNER CHANGE
-  ======================================
-*/
+/* =====================================================
+   LOAD FPL MANAGERS
+===================================================== */
 
-$('winnerSelect')
-  .addEventListener(
-    'change',
-    event => {
+async function loadManagers() {
+  setLoadingMessage(
+    'Connecting to FPL…'
+  );
 
-      draft.winnerEntryId =
-        event.target.value
-          ? Number(
-              event.target.value
-            )
-          : null;
+  showMessage(
+    'Loading FPL managers…'
+  );
+
+  const url =
+    `/api/dashboard?leagueId=${LEAGUE_ID}&_=${Date.now()}`;
+
+  console.log(
+    'Loading dashboard:',
+    url
+  );
+
+  const response =
+    await fetch(url, {
+      cache: 'no-store'
+    });
 
 
-      renderEditor();
+  let dashboard;
+
+  try {
+    dashboard =
+      await response.json();
+  } catch {
+    throw new Error(
+      'Dashboard returned invalid JSON'
+    );
+  }
 
 
-      showMessage(
-        'Unsaved changes',
-        'warning'
-      );
-    }
+  console.log(
+    'Dashboard response:',
+    dashboard
   );
 
 
-/*
-  ======================================
-  CHANGE GW
-  ======================================
-*/
-
-$('gameweekSelect')
-  .addEventListener(
-    'change',
-    event => {
-
-      selectedGw =
-        Number(
-          event.target.value
-        );
+  if (!response.ok) {
+    throw new Error(
+      dashboard.error ||
+      `Dashboard error ${response.status}`
+    );
+  }
 
 
-      loadDraft();
-    }
+  if (
+    !Array.isArray(
+      dashboard.managers
+    )
+  ) {
+    throw new Error(
+      'Dashboard connected, but managers array is missing.'
+    );
+  }
+
+
+  currentGw =
+    Number(
+      dashboard.gameweek?.id ||
+      1
+    );
+
+
+  selectedGw =
+    currentGw;
+
+
+  managers =
+    dashboard.managers;
+
+
+  if ($('adminSubtitle')) {
+    $('adminSubtitle').textContent =
+      `Current FPL Gameweek • GW ${currentGw} • ${managers.length} managers`;
+  }
+
+
+  /*
+    IMPORTANT:
+    Show managers immediately.
+
+    This proves FPL worked even before
+    Supabase finishes loading.
+  */
+
+  draft =
+    buildDraft(currentGw);
+
+  originalDraft =
+    cloneDraft(draft);
+
+  renderEditor();
+
+
+  showMessage(
+    `${managers.length} managers loaded. Loading payments…`
+  );
+}
+
+
+/* =====================================================
+   LOAD PAYMENTS / SETTINGS
+===================================================== */
+
+async function loadAllPayments() {
+  const url =
+    `/api/payments?from=1&to=${currentGw}&_=${Date.now()}`;
+
+
+  console.log(
+    'Loading payments:',
+    url
   );
 
 
-/*
-  ======================================
-  SAVE PAYMENT GW
-  ======================================
-*/
+  const response =
+    await fetch(url, {
+      cache: 'no-store'
+    });
+
+
+  let data;
+
+  try {
+    data =
+      await response.json();
+  } catch {
+    throw new Error(
+      'Payments API returned invalid JSON'
+    );
+  }
+
+
+  console.log(
+    'Payments response:',
+    data
+  );
+
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+      `Payments API error ${response.status}`
+    );
+  }
+
+
+  allPayments =
+    Array.isArray(
+      data.payments
+    )
+      ? data.payments
+      : [];
+
+
+  paymentSettings = {
+    zelle:
+      data.zelle || '',
+
+    fee:
+      Number(
+        data.fee || 0
+      )
+  };
+
+
+  if ($('zelleInput')) {
+    $('zelleInput').value =
+      paymentSettings.zelle;
+  }
+
+
+  if ($('feeInput')) {
+    $('feeInput').value =
+      paymentSettings.fee;
+  }
+}
+
+
+/* =====================================================
+   SAVE GW
+===================================================== */
 
 async function saveDraft() {
   const password =
     $('password')
-      .value
-      .trim();
+      ?.value
+      ?.trim() ||
+    '';
 
 
   if (!password) {
-    $('password').focus();
+    $('password')?.focus();
 
     showMessage(
       'Enter your admin password.',
+      'error'
+    );
+
+    return;
+  }
+
+
+  if (!draft) {
+    showMessage(
+      'Nothing loaded to save.',
       'error'
     );
 
@@ -725,20 +783,21 @@ async function saveDraft() {
     $('saveChanges');
 
 
-  button.disabled =
-    true;
-
-  button.textContent =
-    'Saving…';
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      'Saving…';
+  }
 
 
   try {
-
     const payloadPayments =
       managers.map(
-        manager => ({
+        (manager) => ({
           entryId:
-            manager.entryId,
+            Number(
+              manager.entryId
+            ),
 
           paid:
             draft.payments[
@@ -754,6 +813,21 @@ async function saveDraft() {
       );
 
 
+    console.log(
+      'Saving GW payload:',
+      {
+        gameweek:
+          selectedGw,
+
+        winnerEntryId:
+          draft.winnerEntryId,
+
+        payments:
+          payloadPayments
+      }
+    );
+
+
     const response =
       await fetch(
         '/api/admin/save-payments',
@@ -764,6 +838,8 @@ async function saveDraft() {
             'Content-Type':
               'application/json'
           },
+
+          cache: 'no-store',
 
           body:
             JSON.stringify({
@@ -786,6 +862,12 @@ async function saveDraft() {
       await response.json();
 
 
+    console.log(
+      'Save response:',
+      result
+    );
+
+
     if (!response.ok) {
       throw new Error(
         result.error ||
@@ -795,22 +877,17 @@ async function saveDraft() {
 
 
     if (
-      result.verified !==
-      true
+      result.verified !== true
     ) {
       throw new Error(
-        'Database did not verify the saved changes.'
+        'Database save could not be verified.'
       );
     }
 
 
     /*
-      IMPORTANT:
-
-      Use the verified records that came
-      DIRECTLY back from Supabase.
-
-      No waiting for another API refresh.
+      Take the records that came directly
+      back from Supabase.
     */
 
     replaceGwPayments(
@@ -819,6 +896,10 @@ async function saveDraft() {
     );
 
 
+    /*
+      Build screen from verified DB data.
+    */
+
     draft =
       buildDraft(
         selectedGw
@@ -826,9 +907,7 @@ async function saveDraft() {
 
 
     originalDraft =
-      cloneDraft(
-        draft
-      );
+      cloneDraft(draft);
 
 
     renderEditor();
@@ -844,6 +923,12 @@ async function saveDraft() {
 
   } catch (error) {
 
+    console.error(
+      'Save failed:',
+      error
+    );
+
+
     showMessage(
       error.message,
       'error'
@@ -852,20 +937,20 @@ async function saveDraft() {
 
   } finally {
 
-    button.disabled =
-      false;
+    if (button) {
+      button.disabled =
+        false;
 
-    button.textContent =
-      'Save Changes';
+      button.textContent =
+        'Save Changes';
+    }
   }
 }
 
 
-/*
-  ======================================
-  UNDO UNSAVED CHANGES
-  ======================================
-*/
+/* =====================================================
+   UNDO DRAFT
+===================================================== */
 
 function resetDraft() {
   if (!originalDraft) {
@@ -888,21 +973,20 @@ function resetDraft() {
 }
 
 
-/*
-  ======================================
-  SAVE ZELLE / FEE
-  ======================================
-*/
+/* =====================================================
+   SAVE PAYMENT SETTINGS
+===================================================== */
 
 async function saveSettings() {
   const password =
     $('password')
-      .value
-      .trim();
+      ?.value
+      ?.trim() ||
+    '';
 
 
   if (!password) {
-    $('password').focus();
+    $('password')?.focus();
 
     showMessage(
       'Enter your admin password.',
@@ -915,14 +999,16 @@ async function saveSettings() {
 
   const zelle =
     $('zelleInput')
-      .value
-      .trim();
+      ?.value
+      ?.trim() ||
+    '';
 
 
   const fee =
     Number(
       $('feeInput')
-        .value
+        ?.value ||
+      0
     );
 
 
@@ -930,15 +1016,14 @@ async function saveSettings() {
     $('saveSettings');
 
 
-  button.disabled =
-    true;
-
-  button.textContent =
-    'Saving…';
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      'Saving…';
+  }
 
 
   try {
-
     const response =
       await fetch(
         '/api/admin/settings',
@@ -949,6 +1034,8 @@ async function saveSettings() {
             'Content-Type':
               'application/json'
           },
+
+          cache: 'no-store',
 
           body:
             JSON.stringify({
@@ -972,14 +1059,20 @@ async function saveSettings() {
     }
 
 
-    $('zelleInput')
-      .value =
+    paymentSettings =
+      result.settings;
+
+
+    if ($('zelleInput')) {
+      $('zelleInput').value =
         result.settings.zelle;
+    }
 
 
-    $('feeInput')
-      .value =
+    if ($('feeInput')) {
+      $('feeInput').value =
         result.settings.fee;
+    }
 
 
     showMessage(
@@ -990,6 +1083,11 @@ async function saveSettings() {
 
   } catch (error) {
 
+    console.error(
+      error
+    );
+
+
     showMessage(
       error.message,
       'error'
@@ -998,187 +1096,197 @@ async function saveSettings() {
 
   } finally {
 
-    button.disabled =
-      false;
+    if (button) {
+      button.disabled =
+        false;
 
-    button.textContent =
-      'Save Payment Settings';
+      button.textContent =
+        'Save Payment Settings';
+    }
   }
 }
 
 
-/*
-  ======================================
-  API LOAD
-  ======================================
-*/
+/* =====================================================
+   BIND STATIC CONTROLS SAFELY
+===================================================== */
 
-async function loadManagers() {
-  const response =
-    await fetch(
-      `/api/dashboard?leagueId=${LEAGUE_ID}`,
-      {
-        cache:
-          'no-store'
+function bindControls() {
+  const winnerSelect =
+    $('winnerSelect');
+
+
+  if (winnerSelect) {
+    winnerSelect.addEventListener(
+      'change',
+      (event) => {
+
+        if (!draft) return;
+
+
+        draft.winnerEntryId =
+          event.target.value
+            ? Number(
+                event.target.value
+              )
+            : null;
+
+
+        renderEditor();
+
+
+        showMessage(
+          'Unsaved changes',
+          'warning'
+        );
       }
     );
-
-
-  const dashboard =
-    await response.json();
-
-
-  if (!response.ok) {
-    throw new Error(
-      dashboard.error ||
-      'Unable to load FPL league'
-    );
   }
 
 
-  currentGw =
-    Number(
-      dashboard.gameweek?.id ||
-      1
-    );
+  const gameweekSelect =
+    $('gameweekSelect');
 
 
-  selectedGw =
-    currentGw;
+  if (gameweekSelect) {
+    gameweekSelect.addEventListener(
+      'change',
+      (event) => {
+
+        selectedGw =
+          Number(
+            event.target.value
+          );
 
 
-  managers =
-    Array.isArray(
-      dashboard.managers
-    )
-      ? dashboard.managers
-      : [];
-
-
-  $('adminSubtitle')
-    .textContent =
-      `Current FPL Gameweek • GW ${currentGw}`;
-}
-
-
-async function loadAllPayments() {
-  const response =
-    await fetch(
-      `/api/payments?from=1&to=${currentGw}`,
-      {
-        cache:
-          'no-store'
+        loadDraft();
       }
     );
+  }
 
 
-  const data =
-    await response.json();
+  const saveChanges =
+    $('saveChanges');
 
 
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-      'Unable to load payment history'
+  if (saveChanges) {
+    saveChanges.addEventListener(
+      'click',
+      saveDraft
     );
   }
 
 
-  allPayments =
-    Array.isArray(
-      data.payments
-    )
-      ? data.payments
-      : [];
+  const resetChanges =
+    $('resetChanges');
 
 
-  $('zelleInput')
-    .value =
-      data.zelle ||
-      '';
+  if (resetChanges) {
+    resetChanges.addEventListener(
+      'click',
+      resetDraft
+    );
+  }
 
 
-  $('feeInput')
-    .value =
-      data.fee ??
-      '';
+  const saveSettingsButton =
+    $('saveSettings');
+
+
+  if (saveSettingsButton) {
+    saveSettingsButton.addEventListener(
+      'click',
+      saveSettings
+    );
+  }
 }
 
 
-/*
-  ======================================
-  BUTTONS
-  ======================================
-*/
-
-$('saveChanges')
-  .addEventListener(
-    'click',
-    saveDraft
-  );
-
-
-$('resetChanges')
-  .addEventListener(
-    'click',
-    resetDraft
-  );
-
-
-$('saveSettings')
-  .addEventListener(
-    'click',
-    saveSettings
-  );
-
-
-/*
-  ======================================
-  INIT
-  ======================================
-*/
+/* =====================================================
+   INIT
+===================================================== */
 
 async function init() {
   try {
+    console.log(
+      'Admin initialization started'
+    );
 
-    $('lastUpdated')
-      .textContent =
-        'Loading…';
 
+    setLoadingMessage(
+      'Loading FPL managers…'
+    );
+
+
+    /*
+      STEP 1:
+      FPL first.
+    */
 
     await loadManagers();
+
+
+    /*
+      If we got here, FPL definitely works.
+    */
+
+    buildGameweekSelect();
+
+
+    /*
+      STEP 2:
+      Supabase.
+    */
+
+    setLoadingMessage(
+      'Managers loaded. Loading payment records…'
+    );
+
 
     await loadAllPayments();
 
 
-    buildGameweekSelect();
+    /*
+      STEP 3:
+      Now build actual editor.
+    */
 
     loadDraft();
 
     renderHistory();
 
 
-    $('lastUpdated')
-      .textContent =
+    if ($('lastUpdated')) {
+      $('lastUpdated').textContent =
         `Loaded ${new Date().toLocaleTimeString([], {
           hour: 'numeric',
           minute: '2-digit'
         })}`;
+    }
+
+
+    showMessage(
+      'Admin loaded ✓',
+      'success'
+    );
+
+
+    console.log(
+      'Admin initialization completed'
+    );
 
 
   } catch (error) {
 
     console.error(
+      'ADMIN INIT ERROR:',
       error
     );
 
 
-    $('adminManagerList')
-      .innerHTML = `
-        <div class="empty">
-          ${escapeHtml(error.message)}
-        </div>
-      `;
+    setLoadingMessage(
+      `Error: ${error.message}`
+    );
 
 
     showMessage(
@@ -1189,4 +1297,17 @@ async function init() {
 }
 
 
-init();
+/*
+  Wait until the whole HTML page exists.
+*/
+
+document.addEventListener(
+  'DOMContentLoaded',
+  () => {
+
+    bindControls();
+
+    init();
+
+  }
+);
