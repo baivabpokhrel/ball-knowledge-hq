@@ -3,6 +3,12 @@ import {
 } from '../lib/supabase.js';
 
 export default async function handler(req, res) {
+
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate'
+  );
+
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'Method not allowed'
@@ -15,36 +21,31 @@ export default async function handler(req, res) {
     fee
   } = req.body || {};
 
-  if (!process.env.ADMIN_PASSWORD) {
-    return res.status(500).json({
-      error:
-        'ADMIN_PASSWORD is not configured'
-    });
-  }
 
   if (
     password !==
     process.env.ADMIN_PASSWORD
   ) {
     return res.status(401).json({
-      error:
-        'Incorrect admin password'
+      error: 'Incorrect admin password'
     });
   }
 
+
   const cleanZelle =
-    String(zelle || '')
-      .trim();
+    String(zelle || '').trim();
 
   const cleanFee =
     Number(fee);
 
+
   if (!cleanZelle) {
     return res.status(400).json({
       error:
-        'Zelle information is required'
+        'Enter a Zelle phone number or email.'
     });
   }
+
 
   if (
     !Number.isFinite(cleanFee) ||
@@ -52,11 +53,13 @@ export default async function handler(req, res) {
   ) {
     return res.status(400).json({
       error:
-        'Invalid entry fee'
+        'Enter a valid Gameweek fee.'
     });
   }
 
+
   try {
+
     const record = {
       id: 1,
 
@@ -69,6 +72,7 @@ export default async function handler(req, res) {
       updated_at:
         new Date().toISOString()
     };
+
 
     const result =
       await supabaseRequest(
@@ -88,12 +92,15 @@ export default async function handler(req, res) {
         }
       );
 
+
     const saved =
       Array.isArray(result)
         ? result[0]
         : result;
 
+
     return res.status(200).json({
+
       success: true,
 
       settings: {
@@ -107,13 +114,17 @@ export default async function handler(req, res) {
             cleanFee
           )
       }
+
     });
 
+
   } catch (error) {
+
     console.error(
-      'Settings save error:',
+      'Settings error:',
       error
     );
+
 
     return res.status(500).json({
       error:
