@@ -159,7 +159,9 @@ export default async function handler(req, res) {
         last_rank: null,
         entry: row.entry,
         player_name:
-          row.player_first_name ||
+          [row.player_first_name, row.player_last_name]
+            .filter(Boolean)
+            .join(' ') ||
           row.player_name ||
           'Manager',
         entry_name:
