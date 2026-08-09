@@ -26,11 +26,14 @@
 
 </head>
 
+
 <body>
 
   <main class="app">
 
-    <!-- HEADER -->
+    <!-- ==================================================
+         HEADER
+    =================================================== -->
 
     <header class="topbar">
 
@@ -53,6 +56,7 @@
 
       </div>
 
+
       <button
         id="refresh"
         class="icon-button"
@@ -65,7 +69,9 @@
     </header>
 
 
-    <!-- TOP NAVIGATION -->
+    <!-- ==================================================
+         NAVIGATION
+    =================================================== -->
 
     <nav class="main-nav">
 
@@ -78,6 +84,7 @@
         GW
       </button>
 
+
       <button
         class="nav-button"
         data-tab="payments"
@@ -87,6 +94,7 @@
         Payments
       </button>
 
+
       <button
         class="nav-button"
         data-tab="predictions"
@@ -95,6 +103,7 @@
         <span>🔮</span>
         Predict
       </button>
+
 
       <button
         class="nav-button"
@@ -108,12 +117,45 @@
     </nav>
 
 
-    <!-- CURRENT GAMEWEEK -->
+    <!-- ==================================================
+         GAMEWEEK TAB
+    =================================================== -->
 
     <section
       id="gameweek"
       class="panel"
     >
+
+      <!-- GW SELECTOR -->
+
+      <section
+        class="admin-controls-card"
+        style="margin-bottom:12px;"
+      >
+
+        <label
+          class="form-label"
+          for="publicGwSelect"
+        >
+          GAMEWEEK
+        </label>
+
+
+        <select
+          id="publicGwSelect"
+          class="form-input"
+        >
+
+          <option>
+            Loading…
+          </option>
+
+        </select>
+
+      </section>
+
+
+      <!-- GW STATUS -->
 
       <section class="status-card">
 
@@ -124,12 +166,14 @@
           —
         </span>
 
+
         <h2>
           Gameweek
           <span id="gw">
             —
           </span>
         </h2>
+
 
         <p id="statusText">
           Loading…
@@ -138,11 +182,14 @@
       </section>
 
 
+      <!-- WINNER / LEADER -->
+
       <section class="award-card">
 
         <span class="award-icon">
           👑
         </span>
+
 
         <div>
 
@@ -163,14 +210,16 @@
       </section>
 
 
+      <!-- STANDINGS -->
+
       <div class="section-heading">
 
         <h3>
           Gameweek Standings
         </h3>
 
-        <p>
-          Current Gameweek points only.
+        <p id="gwStandingsSubtitle">
+          Points for this Gameweek only.
         </p>
 
       </div>
@@ -190,46 +239,15 @@
     </section>
 
 
-    <!-- PAYMENTS -->
+    <!-- ==================================================
+         PAYMENTS TAB
+    =================================================== -->
 
     <section
       id="payments"
       class="panel"
       hidden
     >
-
-      <!-- ZELLE -->
-
-      <section class="zelle-card">
-
-        <p class="zelle-label">
-          SEND PAYMENT VIA ZELLE
-        </p>
-
-        <div class="zelle-line">
-
-          <strong id="zelleValue">
-            —
-          </strong>
-
-          <button
-            id="copyZelle"
-            class="copy-button"
-            type="button"
-          >
-            COPY
-          </button>
-
-        </div>
-
-        <p class="zelle-help">
-          Include your FPL team name in the memo.
-        </p>
-
-      </section>
-
-
-      <!-- PAYMENT HISTORY -->
 
       <div class="payment-history-header">
 
@@ -240,13 +258,14 @@
           </h2>
 
           <p>
-            Current and previous Gameweeks.
+            Winner, Zelle and payment status for every GW.
           </p>
 
         </div>
 
+
         <span class="fee-chip">
-          $<span id="fee">—</span>/GW
+          $<span id="fee">20</span>/GW
         </span>
 
       </div>
@@ -266,7 +285,9 @@
     </section>
 
 
-    <!-- PREDICTIONS -->
+    <!-- ==================================================
+         PREDICTIONS
+    =================================================== -->
 
     <section
       id="predictions"
@@ -285,7 +306,7 @@
         </h2>
 
         <p>
-          Win probability engine coming next.
+          Live Gameweek win probabilities are coming next.
         </p>
 
       </div>
@@ -293,7 +314,9 @@
     </section>
 
 
-    <!-- OVERALL -->
+    <!-- ==================================================
+         OVERALL
+    =================================================== -->
 
     <section
       id="overall"
@@ -313,13 +336,14 @@
 
       </div>
 
+
       <div
         id="overallList"
         class="standings-list"
       >
 
         <div class="empty">
-          Loading…
+          Loading overall standings…
         </div>
 
       </div>
@@ -338,7 +362,9 @@
   </main>
 
 
-  <!-- SHARE PREVIEW MODAL -->
+  <!-- ==================================================
+       SHARE PAYMENT REMINDER
+  =================================================== -->
 
   <div
     id="shareModal"
@@ -350,6 +376,7 @@
       class="share-modal-backdrop"
       data-close-share
     ></div>
+
 
     <div class="share-modal-content">
 
@@ -366,6 +393,7 @@
           </h3>
 
         </div>
+
 
         <button
           id="closeShare"
@@ -386,11 +414,14 @@
             BALL KNOWLEDGE ONLY
           </div>
 
+
           <div class="share-card-gw">
-            GW 1 PAYMENT REMINDER
+            PAYMENT REMINDER
           </div>
 
+
           <div class="share-card-rule"></div>
+
 
           <div
             id="sharePreviewBody"
@@ -412,6 +443,7 @@
           Copy Text
         </button>
 
+
         <button
           id="shareReminderImage"
           type="button"
@@ -427,7 +459,7 @@
   </div>
 
 
-  <script src="/app.js?v=30"></script>
+  <script src="/app.js?v=40"></script>
 
 </body>
 
