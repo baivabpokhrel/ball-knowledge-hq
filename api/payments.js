@@ -11,11 +11,8 @@ export default async function handler(req, res) {
 
   try {
     /*
-      ==========================================
-      MULTIPLE GAMEWEEKS
-      Example:
+      RANGE MODE
       /api/payments?from=1&to=5
-      ==========================================
     */
 
     if (
@@ -48,7 +45,7 @@ export default async function handler(req, res) {
           `?gameweek=gte.${from}` +
           `&gameweek=lte.${to}` +
           `&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at` +
-          `&order=gameweek.asc,entry_id.asc`
+          `&order=gameweek.desc,entry_id.asc`
         );
 
       return res.status(200).json({
@@ -73,17 +70,11 @@ export default async function handler(req, res) {
     }
 
     /*
-      ==========================================
-      SINGLE GAMEWEEK
-
-      Existing endpoint continues to work:
-      /api/payments?gw=1
-      ==========================================
+      SINGLE GW MODE
     */
 
-    const gameweek = Number(
-      req.query.gw || 1
-    );
+    const gameweek =
+      Number(req.query.gw || 1);
 
     if (
       !Number.isInteger(gameweek) ||
