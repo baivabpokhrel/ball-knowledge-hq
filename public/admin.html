@@ -26,6 +26,7 @@
 
 </head>
 
+
 <body>
 
   <main class="app">
@@ -39,11 +40,11 @@
         </p>
 
         <h1>
-          Payment Admin
+          GW Admin
         </h1>
 
         <p class="connection">
-          Private control panel
+          Payment & winner control
         </p>
 
       </div>
@@ -51,38 +52,36 @@
     </header>
 
 
+    <!-- PASSWORD -->
+
     <section class="payment-summary">
 
-      <label class="label">
+      <label
+        class="label"
+        for="password"
+      >
         ADMIN PASSWORD
       </label>
 
       <input
         id="password"
+        class="admin-input"
         type="password"
         autocomplete="current-password"
-        placeholder="Enter admin password"
-        style="
-          width:100%;
-          min-height:48px;
-          padding:0 14px;
-          margin-top:7px;
-          border:1px solid #252a31;
-          border-radius:13px;
-          background:#171b21;
-          color:#f4f4f5;
-          font-size:16px;
-        "
+        placeholder="Enter password"
       >
 
     </section>
 
+
+    <!-- SUMMARY -->
 
     <section class="payment-summary">
 
       <div class="summary-top">
 
         <div>
+
           <span class="label">
             GAMEWEEK
           </span>
@@ -93,7 +92,9 @@
               —
             </span>
           </strong>
+
         </div>
+
 
         <button
           id="reloadAdmin"
@@ -106,14 +107,14 @@
       </div>
 
 
-      <div
-        id="adminTotals"
-      >
+      <div id="adminTotals">
         Loading…
       </div>
 
     </section>
 
+
+    <!-- MANAGERS -->
 
     <section>
 
@@ -126,7 +127,7 @@
           </h3>
 
           <p>
-            Tap a manager to mark paid or unpaid.
+            Manage payments and Gameweek winner.
           </p>
 
         </div>
@@ -152,9 +153,9 @@
 
       <a
         href="/"
-        style="color:#d6ad55;"
+        class="back-link"
       >
-        ← Back to public dashboard
+        ← Public Dashboard
       </a>
 
     </footer>
@@ -165,4 +166,5 @@
   <script src="/admin.js"></script>
 
 </body>
+
 </html>
