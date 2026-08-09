@@ -9,24 +9,96 @@ export default async function handler(req, res) {
     });
   }
 
-  const gameweek = Number(
-    req.query.gw || 1
-  );
-
-  if (
-    !Number.isInteger(gameweek) ||
-    gameweek < 1 ||
-    gameweek > 38
-  ) {
-    return res.status(400).json({
-      error: 'Invalid Gameweek'
-    });
-  }
-
   try {
+    /*
+      ==========================================
+      MULTIPLE GAMEWEEKS
+      Example:
+      /api/payments?from=1&to=5
+      ==========================================
+    */
+
+    if (
+      req.query.from !== undefined ||
+      req.query.to !== undefined
+    ) {
+      const from = Number(
+        req.query.from || 1
+      );
+
+      const to = Number(
+        req.query.to || from
+      );
+
+      if (
+        !Number.isInteger(from) ||
+        !Number.isInteger(to) ||
+        from < 1 ||
+        to > 38 ||
+        from > to
+      ) {
+        return res.status(400).json({
+          error: 'Invalid Gameweek range'
+        });
+      }
+
+      const payments =
+        await supabaseRequest(
+          `payments` +
+          `?gameweek=gte.${from}` +
+          `&gameweek=lte.${to}` +
+          `&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at` +
+          `&order=gameweek.asc,entry_id.asc`
+        );
+
+      return res.status(200).json({
+        from,
+        to,
+
+        fee: Number(
+          process.env.GW_ENTRY_FEE || 0
+        ),
+
+        zelle:
+          process.env.ZELLE_DISPLAY || '',
+
+        payments:
+          Array.isArray(payments)
+            ? payments
+            : [],
+
+        updatedAt:
+          new Date().toISOString()
+      });
+    }
+
+    /*
+      ==========================================
+      SINGLE GAMEWEEK
+
+      Existing endpoint continues to work:
+      /api/payments?gw=1
+      ==========================================
+    */
+
+    const gameweek = Number(
+      req.query.gw || 1
+    );
+
+    if (
+      !Number.isInteger(gameweek) ||
+      gameweek < 1 ||
+      gameweek > 38
+    ) {
+      return res.status(400).json({
+        error: 'Invalid Gameweek'
+      });
+    }
+
     const payments =
       await supabaseRequest(
-        `payments?gameweek=eq.${gameweek}` +
+        `payments` +
+        `?gameweek=eq.${gameweek}` +
         `&select=id,gameweek,entry_id,paid,winner,paid_at,updated_at` +
         `&order=entry_id.asc`
       );
@@ -49,9 +121,10 @@ export default async function handler(req, res) {
       updatedAt:
         new Date().toISOString()
     });
+
   } catch (error) {
     console.error(
-      'Payments error:',
+      'Payments API error:',
       error
     );
 
