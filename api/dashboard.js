@@ -1,12 +1,32 @@
 const FPL = 'https://fantasy.premierleague.com/api';
 
+/*
+  FPL's API gets hammered (and gets slow/rate-limited) by every
+  fantasy app in existence right around Gameweek deadlines and
+  during live matches. Without a timeout, one slow call can hang
+  until Vercel kills the whole function with an opaque 502 - with
+  one, a slow call fails fast with a message the UI can show.
+*/
+const FPL_TIMEOUT_MS = 8000;
+
 async function getJson(url) {
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'BallKnowledgeHQ/0.5',
-      Accept: 'application/json'
+  let response;
+
+  try {
+    response = await fetch(url, {
+      headers: {
+        'User-Agent': 'BallKnowledgeHQ/0.5',
+        Accept: 'application/json'
+      },
+      signal: AbortSignal.timeout(FPL_TIMEOUT_MS)
+    });
+
+  } catch (error) {
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+      throw new Error('FPL is responding slowly right now - please try again.');
     }
-  });
+    throw error;
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -110,16 +130,15 @@ export default async function handler(req, res) {
       );
 
 
-    let event =
-      requestedGw
-        ? bootstrap.events.find(
-            e =>
-              e.id === requestedGw
-          )
-        : null;
+    /*
+      FPL's own idea of "the current Gameweek", independent of
+      whatever Gameweek was actually requested. Used below to
+      decide whether we can trust the standings response as-is
+      (fast path) or need to look up historical per-manager
+      points (only possible/necessary for a past Gameweek).
+    */
 
-
-    event ||=
+    const autoEvent =
       bootstrap.events.find(
         e => e.is_current
       ) ||
@@ -132,6 +151,19 @@ export default async function handler(req, res) {
       bootstrap.events[0];
 
 
+    let event =
+      requestedGw
+        ? bootstrap.events.find(
+            e =>
+              e.id === requestedGw
+          )
+        : null;
+
+
+    event ||=
+      autoEvent;
+
+
     if (!event) {
       throw new Error(
         'Unable to determine current Gameweek.'
@@ -141,6 +173,21 @@ export default async function handler(req, res) {
 
     const gw =
       event.id;
+
+
+    /*
+      Viewing the live/current Gameweek is the overwhelmingly
+      common case (every normal page load and auto-refresh).
+      The league standings response already has correct, LIVE
+      event_total/total numbers for it - no need to also hit
+      15+ separate per-manager history endpoints just to
+      re-confirm the same numbers. That only matters (and is
+      only possible) when looking at a DIFFERENT, past Gameweek.
+    */
+
+    const isLiveCurrentGw =
+      !!autoEvent &&
+      gw === autoEvent.id;
 
 
     /*
@@ -266,37 +313,42 @@ export default async function handler(req, res) {
               row.total ?? 0;
 
 
-            try {
-              const history =
-                await getJson(
-                  `${FPL}/entry/${row.entry}/history/`
+            if (!isLiveCurrentGw) {
+
+              try {
+                const history =
+                  await getJson(
+                    `${FPL}/entry/${row.entry}/history/`
+                  );
+
+
+                const current =
+                  history.current?.find(
+                    item =>
+                      item.event === gw
+                  );
+
+
+                if (current) {
+                  gameweekPoints =
+                    current.points ??
+                    gameweekPoints;
+
+                  seasonPoints =
+                    current.total_points ??
+                    seasonPoints;
+                }
+
+              } catch (error) {
+                /*
+                  Expected before GW1, or a manager who
+                  has no history yet for this Gameweek.
+                */
+                console.log(
+                  `No history for entry ${row.entry}: ${error.message}`
                 );
-
-
-              const current =
-                history.current?.find(
-                  item =>
-                    item.event === gw
-                );
-
-
-              if (current) {
-                gameweekPoints =
-                  current.points ??
-                  gameweekPoints;
-
-                seasonPoints =
-                  current.total_points ??
-                  seasonPoints;
               }
 
-            } catch (error) {
-              /*
-                Expected before GW1
-              */
-              console.log(
-                `No history for entry ${row.entry}`
-              );
             }
 
 
