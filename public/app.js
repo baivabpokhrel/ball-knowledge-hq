@@ -640,9 +640,39 @@ async function loadAnalyticsData() {
         .join(',');
 
 
+    /*
+      FPL's own /entry/{id}/history/ endpoint reports a
+      placeholder row (often 0 pts for everyone) for a
+      Gameweek that is still live/in-progress and hasn't
+      been "checked"/finalized yet. Including that row in
+      the season-stats calculation corrupts Highest GW
+      Score / Fraud of the Week / Most Consistent (e.g.
+      everyone ties for "last place" in the bogus 0-pt
+      week). So: only include the current GW once FPL has
+      actually finalized it - otherwise stop one GW short.
+    */
+
+    const currentGw =
+      getCurrentGw();
+
+    const currentGwFinal =
+      !!dashboardData
+        ?.gameweek
+        ?.status
+        ?.final;
+
+    const throughGw =
+      currentGwFinal
+        ? currentGw
+        : Math.max(
+            0,
+            currentGw - 1
+          );
+
+
     const response =
       await fetch(
-        `/api/analytics?entries=${entries}&throughGw=${getCurrentGw()}&_=${Date.now()}`,
+        `/api/analytics?entries=${entries}&throughGw=${throughGw}&_=${Date.now()}`,
         {
           cache:
             'no-store'
