@@ -2476,69 +2476,197 @@ p {
 }
 
 
-.squad-summary-total {
-  flex-shrink: 0;
+.pitch-hint {
+  margin: 0 0 14px;
 
-  padding: 9px 13px;
+  color: var(--muted);
 
-  border-radius: 14px;
+  font-size: 11px;
+  font-style: italic;
 
   text-align: center;
+}
+
+
+/* =====================================================
+   PLAYER OWNERSHIP SHEET
+===================================================== */
+
+.player-info-sheet {
+  position: fixed;
+
+  z-index: 9999;
+
+  inset: 0;
+
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: center;
+}
+
+
+.player-info-backdrop {
+  position: absolute;
+
+  inset: 0;
 
   background:
     rgba(
-      255,
-      255,
-      255,
-      .03
+      0,
+      0,
+      0,
+      .75
     );
+
+  backdrop-filter: blur(5px);
 }
 
 
-.squad-summary-total strong {
-  display: block;
+.player-info-content {
+  position: relative;
 
-  font-size: 20px;
-  font-weight: 900;
+  z-index: 1;
+
+  width: 100%;
+  max-width: 600px;
+
+  max-height: 80vh;
+
+  overflow-y: auto;
+
+  padding:
+    22px
+    18px
+    max(
+      18px,
+      env(safe-area-inset-bottom)
+    );
+
+  border-radius:
+    24px
+    24px
+    0
+    0;
+
+  background: #0d0f12;
 }
 
 
-.squad-summary-total small {
-  display: block;
+.player-info-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
 
-  margin-top: 2px;
+  display: grid;
 
-  font-size: 8px;
+  place-items: center;
+
+  width: 36px;
+  height: 36px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  background: var(--surface);
+
+  color: var(--text);
+}
+
+
+.player-info-head {
+  margin: 0 40px 14px 0;
+}
+
+
+.player-info-head h3 {
+  margin: 0;
+
+  font-size: 19px;
+}
+
+
+.player-info-head small {
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+
+.player-info-owners-title {
+  margin: 0 0 10px;
+
+  color: var(--gold);
+
+  font-size: 10px;
   font-weight: 900;
 
   letter-spacing: .05em;
 
+  text-transform: uppercase;
+}
+
+
+.player-info-owners-list {
+  display: grid;
+
+  gap: 8px;
+}
+
+
+.player-info-owner-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 11px 13px;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: var(--surface);
+}
+
+
+.player-info-owner-row strong {
+  display: block;
+
+  font-size: 14px;
+}
+
+
+.player-info-owner-row small {
+  display: block;
+
+  margin-top: 2px;
+
   color: var(--muted);
+
+  font-size: 11px;
 }
 
 
-.squad-summary-total.tone-final {
-  background: var(--gold-soft);
-}
+.player-info-owner-tag {
+  flex-shrink: 0;
 
+  width: 22px;
+  height: 22px;
 
-.squad-summary-total.tone-final strong {
-  color: var(--gold);
-}
+  display: grid;
 
+  place-items: center;
 
-.squad-summary-total.tone-live {
-  background: var(--green-soft);
-}
+  border-radius: 50%;
 
+  background: var(--gold);
 
-.squad-summary-total.tone-live strong {
-  color: var(--green);
-}
+  color: #1a1400;
 
-
-.squad-summary-total.tone-upcoming strong {
-  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 
@@ -2673,7 +2801,7 @@ p {
 ===================================================== */
 
 .league-picks-card {
-  margin-bottom: 22px;
+  margin-top: 22px;
 
   padding: 14px 15px;
 
@@ -2822,6 +2950,13 @@ p {
   text-align: center;
 
   color: var(--text);
+
+  cursor: pointer;
+}
+
+
+.pitch-player:active {
+  opacity: .7;
 }
 
 

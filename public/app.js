@@ -1229,11 +1229,31 @@ function computeLeagueOwnership() {
   }
 
 
+  const managersById =
+    new Map(
+      (
+        dashboardData?.managers ||
+        []
+      ).map(
+        item => [
+          Number(item.entryId),
+          item
+        ]
+      )
+    );
+
+
   for (const squad of squadsData.squads) {
 
     if (squad.error) {
       continue;
     }
+
+
+    const ownerManager =
+      managersById.get(
+        Number(squad.entryId)
+      );
 
 
     const picks =
@@ -1256,7 +1276,8 @@ function computeLeagueOwnership() {
             ownerCount: 0,
             captainCount: 0,
             livePoints: 0,
-            status: 'upcoming'
+            status: 'upcoming',
+            owners: []
           }
         );
 
@@ -1289,6 +1310,18 @@ function computeLeagueOwnership() {
 
       entry.status =
         player.status || 'upcoming';
+
+
+      entry.owners.push({
+        manager:
+          ownerManager?.manager ||
+          'Unknown',
+        team:
+          ownerManager?.team ||
+          '',
+        isCaptain:
+          !!player.isCaptain
+      });
 
     }
 
@@ -2074,25 +2107,6 @@ function renderSelectedSquad() {
       : '';
 
 
-  const liveStatus =
-    squad.liveStatus || 'upcoming';
-
-
-  const totalLabel =
-    liveStatus === 'final'
-      ? 'FINAL SCORE'
-      : liveStatus === 'live'
-        ? 'LIVE SCORE'
-        : 'PROJECTED';
-
-
-  const totalValue =
-    liveStatus === 'final' &&
-    squad.actualPoints != null
-      ? squad.actualPoints
-      : squad.predictedTotal;
-
-
   const ownership =
     computeLeagueOwnership();
 
@@ -2121,11 +2135,12 @@ function renderSelectedSquad() {
           ${squad.viceCaptain ? escapeHtml(squad.viceCaptain.name) : '—'}
         </p>
       </div>
-      <div class="squad-summary-total tone-${liveStatus}">
-        <strong>${totalValue}</strong>
-        <small>${totalLabel}</small>
-      </div>
     </div>
+
+
+    <p class="pitch-hint">
+      Tap any player to see who else in the league owns them.
+    </p>
 
 
     <div class="pitch">
@@ -2236,7 +2251,10 @@ function pitchPlayerCard(
 
 
   return `
-    <div class="pitch-player">
+    <div
+      class="pitch-player"
+      data-player-id="${player.id}"
+    >
 
       <div class="pitch-shirt-wrap">
 
@@ -2270,6 +2288,145 @@ function pitchPlayerCard(
           : ''
       }
 
+    </div>
+  `;
+
+}
+
+
+/* =====================================================
+   PLAYER OWNERSHIP SHEET (tap a player to see who else
+   in the league owns them)
+===================================================== */
+
+function openPlayerInfo(playerId) {
+
+  if (!$('playerInfoSheet')) {
+    return;
+  }
+
+
+  const ownership =
+    computeLeagueOwnership();
+
+
+  const entry =
+    ownership.get(
+      Number(playerId)
+    );
+
+
+  if (!entry) {
+    return;
+  }
+
+
+  const totalManagers =
+    squadsData &&
+    Array.isArray(
+      squadsData.squads
+    )
+      ? squadsData.squads.filter(
+          squad => !squad.error
+        ).length
+      : entry.ownerCount;
+
+
+  if ($('playerInfoBody')) {
+
+    $('playerInfoBody').innerHTML =
+      buildPlayerInfoHtml(
+        entry,
+        totalManagers
+      );
+
+  }
+
+
+  $('playerInfoSheet').hidden =
+    false;
+
+}
+
+
+function closePlayerInfo() {
+
+  if ($('playerInfoSheet')) {
+
+    $('playerInfoSheet').hidden =
+      true;
+
+  }
+
+}
+
+
+function buildPlayerInfoHtml(
+  entry,
+  totalManagers
+) {
+
+  const isUpcoming =
+    (entry.status || 'upcoming') === 'upcoming';
+
+
+  const pointsText =
+    isUpcoming
+      ? 'Not played yet'
+      : `${Math.round(entry.livePoints || 0)} pts live`;
+
+
+  const owners =
+    [...entry.owners].sort(
+      (a, b) =>
+        a.isCaptain !== b.isCaptain
+          ? (a.isCaptain ? -1 : 1)
+          : a.manager.localeCompare(b.manager)
+    );
+
+
+  return `
+    <div class="player-info-head">
+
+      <h3>
+        ${statusDot(entry.status)}${escapeHtml(entry.name)}
+      </h3>
+
+      <small>
+        ${escapeHtml(entry.team)} &middot; ${escapeHtml(pointsText)}
+      </small>
+
+    </div>
+
+
+    <p class="player-info-owners-title">
+      Owned by ${entry.ownerCount}/${totalManagers} managers
+    </p>
+
+
+    <div class="player-info-owners-list">
+      ${
+        owners
+          .map(
+            owner => `
+              <div class="player-info-owner-row">
+
+                <div>
+                  <strong>${escapeHtml(owner.manager)}</strong>
+                  <small>${escapeHtml(owner.team)}</small>
+                </div>
+
+                ${
+                  owner.isCaptain
+                    ? '<span class="player-info-owner-tag">C</span>'
+                    : ''
+                }
+
+              </div>
+            `
+          )
+          .join('')
+      }
     </div>
   `;
 
@@ -5222,6 +5379,54 @@ if ($('weeklyList')) {
     );
 
 }
+
+
+/* =====================================================
+   PLAYER OWNERSHIP SHEET (Squads tab)
+===================================================== */
+
+if ($('squadDetail')) {
+
+  $('squadDetail')
+    .addEventListener(
+      'click',
+      event => {
+
+        const card =
+          event.target.closest(
+            '[data-player-id]'
+          );
+
+
+        if (!card) {
+          return;
+        }
+
+
+        openPlayerInfo(
+          card.dataset.playerId
+        );
+
+      }
+    );
+
+}
+
+
+document
+  .querySelectorAll(
+    '[data-close-player-info]'
+  )
+  .forEach(
+    element => {
+
+      element.addEventListener(
+        'click',
+        closePlayerInfo
+      );
+
+    }
+  );
 
 
 /* =====================================================

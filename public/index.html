@@ -206,11 +206,6 @@
       </section>
 
 
-      <!-- LEAGUE PICKS (ownership/captaincy across the league) -->
-
-      <div id="leaguePicksCard"></div>
-
-
       <!-- STANDINGS -->
 
       <div class="section-heading">
@@ -236,6 +231,11 @@
         </div>
 
       </div>
+
+
+      <!-- LEAGUE PICKS (ownership/captaincy across the league) -->
+
+      <div id="leaguePicksCard"></div>
 
     </section>
 
@@ -506,7 +506,42 @@
   </div>
 
 
-  <script src="/app.js?v=43"></script>
+  <!-- ==================================================
+       PLAYER OWNERSHIP SHEET (tap a player on the pitch)
+  =================================================== -->
+
+  <div
+    id="playerInfoSheet"
+    class="player-info-sheet"
+    hidden
+  >
+
+    <div
+      class="player-info-backdrop"
+      data-close-player-info
+    ></div>
+
+
+    <div class="player-info-content">
+
+      <button
+        id="closePlayerInfo"
+        class="player-info-close"
+        type="button"
+        data-close-player-info
+      >
+        ✕
+      </button>
+
+
+      <div id="playerInfoBody"></div>
+
+    </div>
+
+  </div>
+
+
+  <script src="/app.js?v=44"></script>
 
 </body>
 
