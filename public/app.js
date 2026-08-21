@@ -1849,18 +1849,12 @@ function squadPlayerRow(player) {
     (player.status || 'upcoming') === 'upcoming';
 
 
-  const displayPoints =
-    isUpcoming
-      ? player.expectedPoints
-      : player.livePoints;
-
-
   const pointsLabel =
-    isUpcoming
-      ? 'PROJ'
+    player.status === 'final'
+      ? 'FINAL'
       : player.status === 'live'
         ? 'LIVE'
-        : 'PTS';
+        : '';
 
 
   return `
@@ -1885,15 +1879,23 @@ function squadPlayerRow(player) {
 
 
       <div class="points">
+        ${
+          isUpcoming
+            ? `
+              <small class="points-pending">
+                Not played yet
+              </small>
+            `
+            : `
+              <strong>
+                ${Math.round(player.livePoints || 0)}
+              </strong>
 
-        <strong>
-          ${Number(displayPoints || 0).toFixed(1)}
-        </strong>
-
-        <small>
-          ${pointsLabel}
-        </small>
-
+              <small>
+                ${pointsLabel}
+              </small>
+            `
+        }
       </div>
 
     </div>
@@ -2310,11 +2312,12 @@ function renderGameweekAward() {
     Live / processing
 
     Before any real points have landed (right after
-    the deadline, before the first kickoff), the
-    "provisional leader" is every manager tied at 0 -
-    not useful. Show FPL's predicted leader instead,
-    for as long as that's true and we have squads
-    for the CURRENT Gameweek loaded.
+    the deadline, before the first kickoff), every
+    manager is tied at 0 - the Gameweek Standings
+    table below already shows that, so there's no
+    separate "predicted winner" card here. (The
+    projected leader still lives on the Predict tab,
+    where it belongs.)
   */
 
   const leaders =
@@ -2328,13 +2331,18 @@ function renderGameweekAward() {
     (leaders[0].gameweekPoints || 0) === 0;
 
 
-  if (
-    noRealPointsYet &&
-    gw === getCurrentGw() &&
-    squadsData
-  ) {
+  if (noRealPointsYet) {
 
-    renderPredictedAward();
+    setAwardCard(
+      buildAwardCardHTML({
+        tone: 'muted',
+        icon: '⏱️',
+        eyebrow: 'GAMEWEEK UNDERWAY',
+        tag: null,
+        winners: [],
+        note: `Real points for GW${gw} haven't landed yet - the standings below will move once matches kick off. See the Predict tab for an early projected leader.`
+      })
+    );
 
     return;
 
@@ -2442,84 +2450,6 @@ function buildAwardCardHTML({
 
     </div>
   `;
-
-}
-
-
-/* =====================================================
-   PREDICTED AWARD (before real points land)
-===================================================== */
-
-function renderPredictedAward() {
-
-  const managers =
-    Array.isArray(
-      dashboardData?.managers
-    )
-      ? dashboardData.managers
-      : [];
-
-
-  const ranked =
-    managers
-      .map(
-        manager => ({
-          manager,
-          squad:
-            squadFor(
-              manager.entryId
-            )
-        })
-      )
-      .filter(
-        row =>
-          row.squad &&
-          !row.squad.error
-      )
-      .sort(
-        (a, b) =>
-          b.squad.predictedTotal -
-          a.squad.predictedTotal
-      );
-
-
-  if (!ranked.length) {
-    return;
-  }
-
-
-  const topTotal =
-    ranked[0].squad.predictedTotal;
-
-
-  const leaders =
-    ranked.filter(
-      row =>
-        row.squad.predictedTotal ===
-        topTotal
-    );
-
-
-  setAwardCard(
-    buildAwardCardHTML({
-      tone: 'predicted',
-      icon: '🔮',
-      eyebrow:
-        leaders.length > 1
-          ? 'PREDICTED LEADERS'
-          : 'PREDICTED LEADER',
-      tag: 'PROJECTED',
-      winners:
-        leaders.map(
-          row => ({
-            name: row.manager.manager,
-            sub: row.manager.team,
-            value: `${row.squad.predictedTotal.toFixed(1)} pts`
-          })
-        ),
-      note: `${predictionReasonText(ranked[0].squad)} See the Predict tab for the full breakdown.`
-    })
-  );
 
 }
 
