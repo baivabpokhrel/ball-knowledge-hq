@@ -473,6 +473,37 @@ p {
 }
 
 
+.standing-row-clickable {
+  cursor: pointer;
+
+  transition: background-color .12s ease, border-color .12s ease;
+}
+
+
+.standing-row-clickable:hover {
+  border-color: var(--gold);
+
+  background: var(--surface-2);
+}
+
+
+.standing-row-clickable:active {
+  background: var(--gold-soft);
+}
+
+
+.standing-row-arrow {
+  flex-shrink: 0;
+
+  margin-left: 6px;
+
+  color: var(--muted);
+
+  font-size: 18px;
+  font-weight: 700;
+}
+
+
 .position {
   width: 31px;
 
@@ -2665,16 +2696,16 @@ p {
 }
 
 
-.league-picks-row {
-  display: flex;
+.league-picks-grid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
 
   gap: 10px;
 }
 
 
 .league-picks-stat {
-  flex: 1;
-
   min-width: 0;
 
   padding: 10px 11px;
@@ -2688,6 +2719,15 @@ p {
       255,
       .03
     );
+}
+
+
+.league-picks-icon {
+  display: block;
+
+  margin-bottom: 3px;
+
+  font-size: 13px;
 }
 
 
@@ -2708,14 +2748,10 @@ p {
 
   margin-top: 3px;
 
-  overflow: hidden;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
   color: var(--muted);
 
   font-size: 10px;
+  line-height: 1.4;
 }
 
 

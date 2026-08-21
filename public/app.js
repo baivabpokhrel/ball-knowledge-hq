@@ -424,7 +424,10 @@ function standingsRow(
 
 
   return `
-    <div class="standing-row">
+    <div
+      class="standing-row ${weekly ? 'standing-row-clickable' : ''}"
+      ${weekly ? `data-entry="${manager.entryId}"` : ''}
+    >
 
       <div class="position">
         ${index + 1}
@@ -468,6 +471,12 @@ function standingsRow(
         </small>
 
       </div>
+
+      ${
+        weekly
+          ? '<div class="standing-row-arrow">›</div>'
+          : ''
+      }
 
     </div>
   `;
@@ -1245,7 +1254,9 @@ function computeLeagueOwnership() {
             name: player.name,
             team: player.team,
             ownerCount: 0,
-            captainCount: 0
+            captainCount: 0,
+            livePoints: 0,
+            status: 'upcoming'
           }
         );
 
@@ -1262,6 +1273,22 @@ function computeLeagueOwnership() {
       if (player.isCaptain) {
         entry.captainCount += 1;
       }
+
+
+      /*
+        A player's live points/status are a fact about the
+        PLAYER, not the manager who owns them, so every
+        owner reports the same value - just take whichever
+        copy we see.
+      */
+
+      entry.livePoints =
+        Number(
+          player.livePoints || 0
+        );
+
+      entry.status =
+        player.status || 'upcoming';
 
     }
 
@@ -1316,11 +1343,41 @@ function leagueOwnershipSummary() {
     );
 
 
+  /*
+    Top scorer this Gameweek - only meaningful once at
+    least one player has actually kicked off.
+  */
+
+  const topScorer =
+    entries
+      .filter(
+        entry => entry.status !== 'upcoming'
+      )
+      .reduce(
+        (best, entry) =>
+          entry.livePoints >
+          (best?.livePoints || 0)
+            ? entry
+            : best,
+        null
+      );
+
+
+  const chipsInPlay =
+    squadsData.squads.filter(
+      squad =>
+        !squad.error &&
+        squad.activeChip
+    ).length;
+
+
   return {
     ownership,
     totalManagers,
     mostOwned,
-    mostCaptained
+    mostCaptained,
+    topScorer,
+    chipsInPlay
   };
 
 }
@@ -1332,13 +1389,7 @@ function buildLeaguePicksCardHtml() {
     leagueOwnershipSummary();
 
 
-  if (
-    !summary ||
-    (
-      !summary.mostOwned &&
-      !(summary.mostCaptained?.captainCount > 0)
-    )
-  ) {
+  if (!summary) {
     return '';
   }
 
@@ -1346,9 +1397,79 @@ function buildLeaguePicksCardHtml() {
   const {
     totalManagers,
     mostOwned,
-    mostCaptained
+    mostCaptained,
+    topScorer,
+    chipsInPlay
   } =
     summary;
+
+
+  /*
+    Each tile is independent - as more live GW stats get
+    added later, they just join this list and the grid
+    below lays them out two-per-row automatically instead
+    of stacking one on top of another.
+  */
+
+  const tiles = [];
+
+
+  if (mostOwned) {
+
+    tiles.push({
+      icon: '👥',
+      name: mostOwned.name,
+      detail: `${mostOwned.ownerCount}/${totalManagers} managers own`
+    });
+
+  }
+
+
+  if (
+    mostCaptained &&
+    mostCaptained.captainCount > 0
+  ) {
+
+    tiles.push({
+      icon: '🎖️',
+      name: mostCaptained.name,
+      detail:
+        `Captained by ${mostCaptained.captainCount} ` +
+        `${mostCaptained.captainCount === 1 ? 'manager' : 'managers'}`
+    });
+
+  }
+
+
+  if (
+    topScorer &&
+    topScorer.livePoints > 0
+  ) {
+
+    tiles.push({
+      icon: '🔥',
+      name: topScorer.name,
+      detail: `${topScorer.livePoints} pts this GW so far`
+    });
+
+  }
+
+
+  if (chipsInPlay > 0) {
+
+    tiles.push({
+      icon: '⚡',
+      name:
+        `${chipsInPlay} ${chipsInPlay === 1 ? 'manager' : 'managers'}`,
+      detail: 'using a chip this GW'
+    });
+
+  }
+
+
+  if (!tiles.length) {
+    return '';
+  }
 
 
   return `
@@ -1358,34 +1479,20 @@ function buildLeaguePicksCardHtml() {
         👥 League Picks &middot; GW${getCurrentGw()}
       </p>
 
-      <div class="league-picks-row">
+      <div class="league-picks-grid">
 
         ${
-          mostOwned
-            ? `
-              <div class="league-picks-stat">
-                <strong>${escapeHtml(mostOwned.name)}</strong>
-                <small>
-                  ${mostOwned.ownerCount}/${totalManagers} managers own
-                </small>
-              </div>
-            `
-            : ''
-        }
-
-        ${
-          mostCaptained &&
-          mostCaptained.captainCount > 0
-            ? `
-              <div class="league-picks-stat">
-                <strong>${escapeHtml(mostCaptained.name)}</strong>
-                <small>
-                  Captained by ${mostCaptained.captainCount}
-                  ${mostCaptained.captainCount === 1 ? 'manager' : 'managers'}
-                </small>
-              </div>
-            `
-            : ''
+          tiles
+            .map(
+              tile => `
+                <div class="league-picks-stat">
+                  <span class="league-picks-icon">${tile.icon}</span>
+                  <strong>${escapeHtml(tile.name)}</strong>
+                  <small>${escapeHtml(tile.detail)}</small>
+                </div>
+              `
+            )
+            .join('')
         }
 
       </div>
@@ -5068,6 +5175,48 @@ if ($('squadManagerPicker')) {
 
 
         renderSquadsTab();
+
+      }
+    );
+
+}
+
+
+/* =====================================================
+   GW STANDINGS -> TAP A MANAGER TO VIEW THEIR SQUAD
+===================================================== */
+
+if ($('weeklyList')) {
+
+  $('weeklyList')
+    .addEventListener(
+      'click',
+      async event => {
+
+        const row =
+          event.target.closest(
+            '[data-entry]'
+          );
+
+
+        if (!row) {
+          return;
+        }
+
+
+        selectedSquadEntry =
+          Number(
+            row.dataset.entry
+          );
+
+
+        await openTab(
+          'squads',
+          {
+            updateHistory: true,
+            scroll: true
+          }
+        );
 
       }
     );
