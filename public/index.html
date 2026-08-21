@@ -107,11 +107,21 @@
 
       <button
         class="nav-button"
-        data-tab="overall"
+        data-tab="analytics"
         type="button"
       >
-        <span>🏆</span>
-        Overall
+        <span>📊</span>
+        Analytics
+      </button>
+
+
+      <button
+        class="nav-button"
+        data-tab="squads"
+        type="button"
+      >
+        <span>👕</span>
+        Squads
       </button>
 
     </nav>
@@ -295,19 +305,26 @@
       hidden
     >
 
-      <div class="feature-card">
-
-        <span class="feature-icon">
-          🔮
-        </span>
+      <div class="section-heading">
 
         <h2>
           Live Win Prediction
         </h2>
 
-        <p>
-          Live Gameweek win probabilities are coming next.
+        <p id="predictionsSubtitle">
+          Predicted using FPL's own expected points (xP) for each locked-in squad.
         </p>
+
+      </div>
+
+
+      <div
+        id="predictionsBody"
+      >
+
+        <div class="empty">
+          Loading predictions…
+        </div>
 
       </div>
 
@@ -315,11 +332,11 @@
 
 
     <!-- ==================================================
-         OVERALL
+         ANALYTICS
     =================================================== -->
 
     <section
-      id="overall"
+      id="analytics"
       class="panel"
       hidden
     >
@@ -327,23 +344,70 @@
       <div class="section-heading">
 
         <h2>
-          Overall League
+          League Analytics
         </h2>
 
         <p>
-          Full-season standings.
+          GW wins, season points and averages for every manager.
         </p>
 
       </div>
 
 
       <div
-        id="overallList"
+        id="analyticsSummary"
+      ></div>
+
+
+      <div
+        id="analyticsList"
         class="standings-list"
       >
 
         <div class="empty">
-          Loading overall standings…
+          Loading analytics…
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         SQUADS
+    =================================================== -->
+
+    <section
+      id="squads"
+      class="panel"
+      hidden
+    >
+
+      <div class="section-heading">
+
+        <h2>
+          Squads
+        </h2>
+
+        <p id="squadsSubtitle">
+          Captain, vice-captain and chips for this Gameweek.
+        </p>
+
+      </div>
+
+
+      <div
+        id="squadManagerPicker"
+        class="squad-manager-picker"
+      ></div>
+
+
+      <div
+        id="squadDetail"
+      >
+
+        <div class="empty">
+          Loading squads…
         </div>
 
       </div>
@@ -459,7 +523,7 @@
   </div>
 
 
-  <script src="/app.js?v=40"></script>
+  <script src="/app.js?v=41"></script>
 
 </body>
 

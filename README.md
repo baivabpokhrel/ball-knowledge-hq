@@ -1,4 +1,4 @@
-# Ball Knowledge HQ v0.3
+# Ball Knowledge HQ v0.4
 
 Mobile-first FPL mini-league dashboard.
 
@@ -10,6 +10,10 @@ Mobile-first FPL mini-league dashboard.
 - Tie support
 - Demo mode
 - Vercel serverless API proxy
+- **Predict tab**: predicted Gameweek leader and full standings, built from FPL's own expected-points (xP) model for each manager's locked-in starting XI and captain (unlocks once the GW deadline passes)
+- **Analytics tab**: GW-wins leaderboard, season points and season average per manager, replacing the old plain Overall tab
+- **Squads tab**: browse every manager's picks for the current Gameweek - captain, vice-captain, active chip, starting XI and bench
+- The Gameweek award card shows a "Predicted Leader" (with reasoning) instead of a meaningless all-tied "Provisional Leader" in the window between the deadline and the first kickoff
 
 ## Deploy free with Vercel
 1. Create a free GitHub account and a free Vercel account.

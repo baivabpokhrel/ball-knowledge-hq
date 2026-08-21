@@ -208,9 +208,9 @@ p {
   display: grid;
 
   grid-template-columns:
-    repeat(4, 1fr);
+    repeat(5, 1fr);
 
-  gap: 5px;
+  gap: 4px;
 
   margin-bottom: 22px;
 
@@ -241,6 +241,8 @@ p {
 .nav-button {
   min-height: 51px;
 
+  padding: 0 2px;
+
   border: 0;
 
   border-radius: 11px;
@@ -251,8 +253,12 @@ p {
   color:
     var(--muted);
 
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
+
+  line-height: 1.2;
+
+  white-space: nowrap;
 }
 
 
@@ -2061,4 +2067,75 @@ p {
   .history-gw-row {
     padding: 10px 11px;
   }
+}
+
+
+/* =====================================================
+   PREDICTIONS / SQUADS
+===================================================== */
+
+.chip-badge {
+  display: inline-block;
+
+  margin-left: 6px;
+
+  padding: 2px 7px;
+
+  border-radius: 999px;
+
+  background: var(--gold-soft);
+
+  color: var(--gold);
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: .04em;
+
+  vertical-align: middle;
+}
+
+
+.squad-manager-picker {
+  display: flex;
+
+  gap: 8px;
+
+  margin-bottom: 18px;
+
+  padding-bottom: 4px;
+
+  overflow-x: auto;
+
+  -webkit-overflow-scrolling: touch;
+}
+
+
+.squad-chip {
+  flex-shrink: 0;
+
+  min-height: 40px;
+
+  padding: 0 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 999px;
+
+  background: var(--surface);
+
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 800;
+
+  white-space: nowrap;
+}
+
+
+.squad-chip.active {
+  border-color: var(--gold);
+
+  background: var(--gold-soft);
+
+  color: var(--gold);
 }

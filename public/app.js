@@ -14,7 +14,8 @@ const VALID_TABS = [
   'gameweek',
   'payments',
   'predictions',
-  'overall'
+  'analytics',
+  'squads'
 ];
 
 
@@ -60,6 +61,26 @@ let paymentMeta =
 
 
 let activeShareGw =
+  null;
+
+
+/*
+  Predicted-points + picks data for the CURRENT
+  Gameweek only (FPL hides other managers' picks
+  until the Gameweek deadline, and "ep_this" only
+  ever describes FPL's current live Gameweek, so
+  this feature never looks at past Gameweeks).
+*/
+
+let squadsData =
+  null;
+
+
+let squadsLoading =
+  false;
+
+
+let selectedSquadEntry =
   null;
 
 
@@ -449,14 +470,6 @@ function renderCurrentLeagueData() {
       : [];
 
 
-  const overall =
-    Array.isArray(
-      data.overall
-    )
-      ? data.overall
-      : [];
-
-
   if ($('league')) {
 
     $('league')
@@ -481,28 +494,922 @@ function renderCurrentLeagueData() {
   }
 
 
-  if ($('overallList')) {
+  renderAnalytics();
 
-    $('overallList')
-      .innerHTML =
-        overall.length
-          ? overall
-              .map(
-                (manager, index) =>
-                  standingsRow(
-                    manager,
-                    index,
-                    false
-                  )
-              )
-              .join('')
-          : `
-            <div class="empty">
-              No overall standings yet.
-            </div>
-          `;
+}
+
+
+/* =====================================================
+   ANALYTICS (GW wins, season points, averages)
+===================================================== */
+
+function gwWinsByEntry() {
+
+  const wins = {};
+
+
+  if (!dashboardData) {
+    return wins;
+  }
+
+
+  const currentGw =
+    getCurrentGw();
+
+
+  for (
+    let gw = 1;
+    gw <= currentGw;
+    gw++
+  ) {
+
+    const winner =
+      manualWinnerForGw(
+        gw
+      );
+
+
+    if (!winner) {
+      continue;
+    }
+
+
+    const key =
+      Number(
+        winner.entryId
+      );
+
+
+    wins[key] =
+      (wins[key] || 0) + 1;
 
   }
+
+
+  return wins;
+
+}
+
+
+function renderAnalytics() {
+
+  if (
+    !dashboardData ||
+    !$('analyticsList')
+  ) {
+    return;
+  }
+
+
+  const overall =
+    Array.isArray(
+      dashboardData.overall
+    )
+      ? dashboardData.overall
+      : [];
+
+
+  const currentGw =
+    getCurrentGw();
+
+
+  const wins =
+    gwWinsByEntry();
+
+
+  const rows =
+    overall
+      .map(
+        manager => ({
+          manager,
+          wins:
+            wins[
+              Number(
+                manager.entryId
+              )
+            ] || 0,
+          avg:
+            currentGw > 0
+              ? manager.seasonPoints /
+                currentGw
+              : 0
+        })
+      );
+
+
+  const topWins =
+    rows.reduce(
+      (best, row) =>
+        row.wins > best
+          ? row.wins
+          : best,
+      0
+    );
+
+
+  const leaders =
+    topWins > 0
+      ? rows.filter(
+          row =>
+            row.wins ===
+            topWins
+        )
+      : [];
+
+
+  if ($('analyticsSummary')) {
+
+    $('analyticsSummary')
+      .innerHTML =
+        leaders.length
+          ? `
+            <div class="award-card" style="margin-bottom:22px;">
+              <span class="award-icon">🏆</span>
+              <div>
+                <small>MOST GW WINS</small>
+                <h3>
+                  ${
+                    leaders
+                      .map(
+                        row =>
+                          escapeHtml(
+                            row.manager.team
+                          )
+                      )
+                      .join(', ')
+                  }
+                </h3>
+                <p>
+                  ${topWins} Gameweek
+                  ${topWins === 1 ? 'win' : 'wins'}
+                  this season.
+                </p>
+              </div>
+            </div>
+          `
+          : '';
+
+  }
+
+
+  $('analyticsList').innerHTML =
+    rows.length
+      ? rows
+          .sort(
+            (a, b) =>
+              b.manager.seasonPoints -
+                a.manager.seasonPoints ||
+              a.manager.team.localeCompare(
+                b.manager.team
+              )
+          )
+          .map(
+            (row, index) =>
+              analyticsRow(
+                row,
+                index
+              )
+          )
+          .join('')
+      : `
+        <div class="empty">
+          No analytics yet.
+        </div>
+      `;
+
+}
+
+
+function analyticsRow(
+  row,
+  index
+) {
+
+  const manager =
+    row.manager;
+
+
+  return `
+    <div class="standing-row">
+
+      <div class="position">
+        ${index + 1}
+      </div>
+
+
+      <div class="manager-info">
+
+        <strong>
+          ${escapeHtml(manager.team)}
+        </strong>
+
+        <small>
+          ${escapeHtml(manager.manager)}
+          &middot;
+          ${row.wins}
+          GW
+          ${row.wins === 1 ? 'win' : 'wins'}
+          &middot;
+          ${row.avg.toFixed(1)} avg
+        </small>
+
+      </div>
+
+
+      <div class="points">
+
+        <strong>
+          ${manager.seasonPoints}
+        </strong>
+
+        <small>
+          SEASON PTS
+        </small>
+
+      </div>
+
+    </div>
+  `;
+
+}
+
+
+/* =====================================================
+   PREDICTIONS + SQUADS DATA (current GW only)
+===================================================== */
+
+function gameweekHasStarted() {
+
+  return (
+    dashboardData
+      ?.gameweek
+      ?.status
+      ?.code !==
+    'PRE-SEASON'
+  );
+
+}
+
+
+function squadFor(entryId) {
+
+  if (
+    !squadsData ||
+    !Array.isArray(
+      squadsData.squads
+    )
+  ) {
+    return null;
+  }
+
+
+  return (
+    squadsData.squads.find(
+      squad =>
+        Number(
+          squad.entryId
+        ) ===
+        Number(entryId)
+    ) ||
+    null
+  );
+
+}
+
+
+async function loadSquadsData() {
+
+  if (
+    !dashboardData ||
+    !gameweekHasStarted() ||
+    squadsLoading
+  ) {
+    return;
+  }
+
+
+  const managers =
+    Array.isArray(
+      dashboardData.managers
+    )
+      ? dashboardData.managers
+      : [];
+
+
+  if (!managers.length) {
+    return;
+  }
+
+
+  squadsLoading =
+    true;
+
+
+  try {
+
+    const gw =
+      getCurrentGw();
+
+
+    const entries =
+      managers
+        .map(
+          manager =>
+            manager.entryId
+        )
+        .join(',');
+
+
+    const response =
+      await fetch(
+        `/api/squads?gw=${gw}&entries=${entries}&_=${Date.now()}`,
+        {
+          cache:
+            'no-store'
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        'Unable to load squads'
+      );
+
+    }
+
+
+    squadsData =
+      data;
+
+
+    if (
+      !selectedSquadEntry &&
+      managers.length
+    ) {
+
+      selectedSquadEntry =
+        Number(
+          managers[0].entryId
+        );
+
+    }
+
+
+    renderGameweekAward();
+
+    renderPredictions();
+
+    renderSquadsTab();
+
+
+  } catch (error) {
+
+    console.error(
+      'Squads load failed:',
+      error
+    );
+
+
+    if ($('predictionsBody')) {
+
+      $('predictionsBody')
+        .innerHTML = `
+          <div class="empty">
+            ${escapeHtml(error.message)}
+          </div>
+        `;
+
+    }
+
+
+    if ($('squadDetail')) {
+
+      $('squadDetail')
+        .innerHTML = `
+          <div class="empty">
+            ${escapeHtml(error.message)}
+          </div>
+        `;
+
+    }
+
+  } finally {
+
+    squadsLoading =
+      false;
+
+  }
+
+}
+
+
+/* =====================================================
+   PREDICTIONS TAB
+===================================================== */
+
+function renderPredictions() {
+
+  if (!$('predictionsBody')) {
+    return;
+  }
+
+
+  if (!gameweekHasStarted()) {
+
+    $('predictionsBody').innerHTML = `
+      <div class="feature-card">
+        <span class="feature-icon">🔮</span>
+        <h2>Waiting for kickoff</h2>
+        <p>
+          Predictions unlock once GW${getCurrentGw()}'s
+          deadline passes and squads are locked in.
+        </p>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    squadsLoading &&
+    !squadsData
+  ) {
+
+    $('predictionsBody').innerHTML = `
+      <div class="empty">
+        Loading predictions…
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (!squadsData) {
+    return;
+  }
+
+
+  const managers =
+    Array.isArray(
+      dashboardData?.managers
+    )
+      ? dashboardData.managers
+      : [];
+
+
+  const rows =
+    managers
+      .map(
+        manager => ({
+          manager,
+          squad:
+            squadFor(
+              manager.entryId
+            )
+        })
+      )
+      .filter(
+        row =>
+          row.squad &&
+          !row.squad.error
+      )
+      .sort(
+        (a, b) =>
+          b.squad.predictedTotal -
+          a.squad.predictedTotal
+      );
+
+
+  if (!rows.length) {
+
+    $('predictionsBody').innerHTML = `
+      <div class="empty">
+        No predictions available yet.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  const leaderTotal =
+    rows[0].squad.predictedTotal;
+
+
+  const leaders =
+    rows.filter(
+      row =>
+        row.squad.predictedTotal ===
+        leaderTotal
+    );
+
+
+  const summary = `
+    <div class="award-card" style="margin-bottom:22px;">
+      <span class="award-icon">🔮</span>
+      <div>
+        <small>PREDICTED LEADER</small>
+        <h3>
+          ${
+            leaders
+              .map(
+                row =>
+                  escapeHtml(
+                    row.manager.team
+                  )
+              )
+              .join(', ')
+          }
+          — ${leaderTotal.toFixed(1)} pts
+        </h3>
+        <p>
+          ${predictionReasonText(rows[0].squad)}
+        </p>
+      </div>
+    </div>
+  `;
+
+
+  const list =
+    rows
+      .map(
+        row =>
+          predictionRow(row)
+      )
+      .join('');
+
+
+  $('predictionsBody').innerHTML =
+    summary + list;
+
+}
+
+
+function predictionReasonText(squad) {
+
+  const contributors =
+    squad.topContributors ||
+    [];
+
+
+  if (!contributors.length) {
+
+    return 'Based on FPL\'s expected points for the locked-in starting XI.';
+
+  }
+
+
+  const parts =
+    contributors
+      .map(
+        player =>
+          `${escapeHtml(player.name)}${player.isCaptain ? ' (C)' : ''} ${player.predictedContribution.toFixed(1)} xPts`
+      )
+      .join(', ');
+
+
+  return `Driven by ${parts}.`;
+
+}
+
+
+function predictionRow(row) {
+
+  const squad =
+    row.squad;
+
+
+  const chip =
+    squad.activeChipLabel
+      ? `<span class="chip-badge">${escapeHtml(squad.activeChipLabel)}</span>`
+      : '';
+
+
+  return `
+    <div class="standing-row">
+
+      <div class="manager-info">
+
+        <strong>
+          ${escapeHtml(row.manager.team)}
+          ${chip}
+        </strong>
+
+        <small>
+          ${predictionReasonText(squad)}
+        </small>
+
+      </div>
+
+
+      <div class="points">
+
+        <strong>
+          ${squad.predictedTotal.toFixed(1)}
+        </strong>
+
+        <small>
+          xPTS
+        </small>
+
+      </div>
+
+    </div>
+  `;
+
+}
+
+
+/* =====================================================
+   SQUADS TAB
+===================================================== */
+
+function renderSquadsTab() {
+
+  if (!$('squadManagerPicker')) {
+    return;
+  }
+
+
+  if (!gameweekHasStarted()) {
+
+    $('squadManagerPicker').innerHTML =
+      '';
+
+    $('squadDetail').innerHTML = `
+      <div class="feature-card">
+        <span class="feature-icon">👕</span>
+        <h2>Waiting for kickoff</h2>
+        <p>
+          Squads unlock once GW${getCurrentGw()}'s
+          deadline passes.
+        </p>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    squadsLoading &&
+    !squadsData
+  ) {
+
+    $('squadDetail').innerHTML = `
+      <div class="empty">
+        Loading squads…
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (!squadsData) {
+    return;
+  }
+
+
+  const managers =
+    Array.isArray(
+      dashboardData?.managers
+    )
+      ? dashboardData.managers
+      : [];
+
+
+  if ($('squadsSubtitle')) {
+
+    $('squadsSubtitle').textContent =
+      `Captain, vice-captain and chips for GW${getCurrentGw()}.`;
+
+  }
+
+
+  $('squadManagerPicker').innerHTML =
+    managers
+      .map(
+        manager => {
+
+          const squad =
+            squadFor(
+              manager.entryId
+            );
+
+
+          const active =
+            Number(
+              selectedSquadEntry
+            ) ===
+            Number(
+              manager.entryId
+            );
+
+
+          return `
+            <button
+              type="button"
+              class="squad-chip ${active ? 'active' : ''}"
+              data-entry="${manager.entryId}"
+            >
+              ${escapeHtml(manager.team)}
+              ${
+                squad?.activeChipLabel
+                  ? '⚡'
+                  : ''
+              }
+            </button>
+          `;
+
+        }
+      )
+      .join('');
+
+
+  renderSelectedSquad();
+
+}
+
+
+function renderSelectedSquad() {
+
+  if (!$('squadDetail')) {
+    return;
+  }
+
+
+  const manager =
+    (
+      dashboardData?.managers ||
+      []
+    ).find(
+      item =>
+        Number(
+          item.entryId
+        ) ===
+        Number(
+          selectedSquadEntry
+        )
+    );
+
+
+  const squad =
+    squadFor(
+      selectedSquadEntry
+    );
+
+
+  if (
+    !manager ||
+    !squad
+  ) {
+
+    $('squadDetail').innerHTML = `
+      <div class="empty">
+        Select a manager above.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (squad.error) {
+
+    $('squadDetail').innerHTML = `
+      <div class="empty">
+        ${escapeHtml(squad.error)}
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  const chip =
+    squad.activeChipLabel
+      ? `<span class="chip-badge">${escapeHtml(squad.activeChipLabel)}</span>`
+      : '';
+
+
+  $('squadDetail').innerHTML = `
+
+    <div class="award-card" style="margin-bottom:18px;">
+      <span class="award-icon">👕</span>
+      <div>
+        <small>${escapeHtml(manager.manager)}</small>
+        <h3>
+          ${escapeHtml(manager.team)}
+          ${chip}
+        </h3>
+        <p>
+          Captain
+          ${squad.captain ? escapeHtml(squad.captain.name) : '—'}
+          &middot;
+          Vice
+          ${squad.viceCaptain ? escapeHtml(squad.viceCaptain.name) : '—'}
+        </p>
+      </div>
+    </div>
+
+
+    <div class="section-heading">
+      <h3>Starting XI</h3>
+    </div>
+
+    <div class="standings-list" style="margin-bottom:22px;">
+      ${
+        squad.startingXI
+          .map(
+            player =>
+              squadPlayerRow(player)
+          )
+          .join('')
+      }
+    </div>
+
+
+    <div class="section-heading">
+      <h3>Bench</h3>
+    </div>
+
+    <div class="standings-list">
+      ${
+        squad.bench
+          .map(
+            player =>
+              squadPlayerRow(player)
+          )
+          .join('')
+      }
+    </div>
+
+  `;
+
+}
+
+
+function squadPlayerRow(player) {
+
+  const badge =
+    player.isCaptain
+      ? ' (C)'
+      : player.isViceCaptain
+        ? ' (V)'
+        : '';
+
+
+  return `
+    <div class="standing-row">
+
+      <div class="position">
+        ${escapeHtml(player.position)}
+      </div>
+
+
+      <div class="manager-info">
+
+        <strong>
+          ${escapeHtml(player.name)}${badge}
+        </strong>
+
+        <small>
+          ${escapeHtml(player.team)}
+        </small>
+
+      </div>
+
+
+      <div class="points">
+
+        <strong>
+          ${player.expectedPoints.toFixed(1)}
+        </strong>
+
+        <small>
+          xPTS
+        </small>
+
+      </div>
+
+    </div>
+  `;
 
 }
 
@@ -944,12 +1851,37 @@ function renderGameweekAward() {
 
   /*
     Live / processing
+
+    Before any real points have landed (right after
+    the deadline, before the first kickoff), the
+    "provisional leader" is every manager tied at 0 -
+    not useful. Show FPL's predicted leader instead,
+    for as long as that's true and we have squads
+    for the CURRENT Gameweek loaded.
   */
 
   const leaders =
     data.awards
       ?.provisionalLeader ||
     [];
+
+
+  const noRealPointsYet =
+    leaders.length > 0 &&
+    (leaders[0].gameweekPoints || 0) === 0;
+
+
+  if (
+    noRealPointsYet &&
+    gw === getCurrentGw() &&
+    squadsData
+  ) {
+
+    renderPredictedAward();
+
+    return;
+
+  }
 
 
   if ($('awardTitle')) {
@@ -982,6 +1914,94 @@ function renderGameweekAward() {
     $('awardNote')
       .textContent =
         'Points may still change after bonuses and corrections.';
+
+  }
+
+}
+
+
+/* =====================================================
+   PREDICTED AWARD (before real points land)
+===================================================== */
+
+function renderPredictedAward() {
+
+  const managers =
+    Array.isArray(
+      dashboardData?.managers
+    )
+      ? dashboardData.managers
+      : [];
+
+
+  const ranked =
+    managers
+      .map(
+        manager => ({
+          manager,
+          squad:
+            squadFor(
+              manager.entryId
+            )
+        })
+      )
+      .filter(
+        row =>
+          row.squad &&
+          !row.squad.error
+      )
+      .sort(
+        (a, b) =>
+          b.squad.predictedTotal -
+          a.squad.predictedTotal
+      );
+
+
+  if (!ranked.length) {
+    return;
+  }
+
+
+  const topTotal =
+    ranked[0].squad.predictedTotal;
+
+
+  const leaders =
+    ranked.filter(
+      row =>
+        row.squad.predictedTotal ===
+        topTotal
+    );
+
+
+  if ($('awardTitle')) {
+
+    $('awardTitle')
+      .textContent =
+        'Predicted Leader';
+
+  }
+
+
+  if ($('awardText')) {
+
+    $('awardText')
+      .textContent =
+        leaders
+          .map(
+            row =>
+              `${row.manager.team} — ${row.squad.predictedTotal.toFixed(1)} xPts`
+          )
+          .join(', ');
+
+  }
+
+
+  if ($('awardNote')) {
+
+    $('awardNote')
+      .textContent =
+        `${predictionReasonText(ranked[0].squad)} See the Predict tab for the full breakdown.`;
 
   }
 
@@ -2817,6 +3837,14 @@ async function refreshPaymentsOnly() {
     renderPaymentHistory();
 
 
+    /*
+      GW win counts (Analytics tab) are derived
+      from these same payment records.
+    */
+
+    renderAnalytics();
+
+
   } catch (error) {
 
     console.error(
@@ -2945,6 +3973,65 @@ async function openTab(
 
 
   /*
+    PREDICTIONS
+  */
+
+  if (
+    tab === 'predictions'
+  ) {
+
+    renderPredictions();
+
+
+    if (
+      !squadsData &&
+      !squadsLoading
+    ) {
+
+      await loadSquadsData();
+
+    }
+
+  }
+
+
+  /*
+    ANALYTICS
+  */
+
+  if (
+    tab === 'analytics'
+  ) {
+
+    renderAnalytics();
+
+  }
+
+
+  /*
+    SQUADS
+  */
+
+  if (
+    tab === 'squads'
+  ) {
+
+    renderSquadsTab();
+
+
+    if (
+      !squadsData &&
+      !squadsLoading
+    ) {
+
+      await loadSquadsData();
+
+    }
+
+  }
+
+
+  /*
     URL
   */
 
@@ -3061,6 +4148,15 @@ async function loadEverything() {
 
 
     buildPublicGwSelect();
+
+
+    /*
+      Predictions/squads (current GW only).
+      Not awaited - the picks fetch is slower and
+      shouldn't block the rest of the page painting.
+    */
+
+    loadSquadsData();
 
 
     /*
@@ -3208,6 +4304,42 @@ document
 
     }
   );
+
+
+/* =====================================================
+   SQUAD MANAGER PICKER
+===================================================== */
+
+if ($('squadManagerPicker')) {
+
+  $('squadManagerPicker')
+    .addEventListener(
+      'click',
+      event => {
+
+        const button =
+          event.target.closest(
+            '[data-entry]'
+          );
+
+
+        if (!button) {
+          return;
+        }
+
+
+        selectedSquadEntry =
+          Number(
+            button.dataset.entry
+          );
+
+
+        renderSquadsTab();
+
+      }
+    );
+
+}
 
 
 /* =====================================================
