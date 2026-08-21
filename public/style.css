@@ -1734,6 +1734,38 @@ p {
 }
 
 
+/* WINNER TOGGLE (tap to mark/unmark a GW winner - ties allowed) */
+
+.winner-toggle {
+  width: 38px;
+  height: 38px;
+
+  flex-shrink: 0;
+
+  margin-left: 9px;
+
+  border: 1px solid var(--border);
+  border-radius: 11px;
+
+  background: var(--surface-2);
+
+  font-size: 17px;
+
+  filter: grayscale(1);
+  opacity: .55;
+}
+
+
+.winner-toggle.active {
+  border-color: var(--gold);
+
+  background: var(--gold-soft);
+
+  filter: none;
+  opacity: 1;
+}
+
+
 /* STATUS CHIPS */
 
 .paid-chip,
@@ -2138,4 +2170,454 @@ p {
   background: var(--gold-soft);
 
   color: var(--gold);
+}
+
+
+/* =====================================================
+   GW AWARD CARD (Official Winner / Provisional /
+   Predicted Leader) - ties render as a stack of pills
+   instead of one cramped line.
+===================================================== */
+
+.gw-award-card {
+  margin-bottom: 22px;
+
+  padding: 18px;
+
+  border: 1px solid var(--border);
+  border-radius: 19px;
+
+  background: var(--surface);
+}
+
+
+.gw-award-card.tone-final {
+  border-color: #705c29;
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--gold-soft),
+      var(--surface)
+    );
+}
+
+
+.gw-award-card.tone-live {
+  border-color: #245d41;
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--green-soft),
+      var(--surface)
+    );
+}
+
+
+.gw-award-card.tone-predicted {
+  border-color: #3a3168;
+
+  background:
+    linear-gradient(
+      145deg,
+      #211c3b,
+      var(--surface)
+    );
+}
+
+
+.gw-award-card.tone-muted {
+  opacity: .85;
+}
+
+
+.gw-award-head {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 13px;
+}
+
+
+.gw-award-icon {
+  font-size: 25px;
+}
+
+
+.gw-award-eyebrow {
+  flex: 1;
+
+  min-width: 0;
+
+  color: var(--gold);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: .08em;
+}
+
+
+.gw-award-tag {
+  flex-shrink: 0;
+
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: .05em;
+}
+
+
+.gw-award-tag.final {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+
+.gw-award-tag.live {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+
+.gw-award-tag.predicted {
+  background: #2a2350;
+  color: #b9a8ff;
+}
+
+
+.gw-award-winners {
+  display: grid;
+
+  gap: 8px;
+
+  margin-bottom: 11px;
+}
+
+
+.gw-award-winner {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 11px 13px;
+
+  border-radius: 14px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .03
+    );
+}
+
+
+.gw-award-winner strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 15px;
+}
+
+
+.gw-award-winner small {
+  display: block;
+
+  margin-top: 2px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+.gw-award-winner .gw-award-pts {
+  flex-shrink: 0;
+
+  font-size: 16px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+.gw-award-note {
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 10.5px;
+
+  line-height: 1.5;
+}
+
+
+/* LIVE PLAYER STATUS DOT (Squads / Predict) */
+
+.player-status-dot {
+  display: inline-block;
+
+  width: 6px;
+  height: 6px;
+
+  margin-right: 5px;
+
+  border-radius: 50%;
+
+  vertical-align: middle;
+}
+
+
+.player-status-dot.live {
+  background: var(--green);
+
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
+
+
+.player-status-dot.final {
+  background: var(--muted);
+}
+
+
+.player-status-dot.upcoming {
+  background: var(--border);
+}
+
+
+/* SQUAD DETAIL SUMMARY (manager card + live total) */
+
+.squad-summary-card {
+  align-items: center;
+
+  justify-content: space-between;
+}
+
+
+.squad-summary-info {
+  flex: 1;
+
+  min-width: 0;
+}
+
+
+.squad-summary-info small {
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+.squad-summary-total {
+  flex-shrink: 0;
+
+  padding: 9px 13px;
+
+  border-radius: 14px;
+
+  text-align: center;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .03
+    );
+}
+
+
+.squad-summary-total strong {
+  display: block;
+
+  font-size: 20px;
+  font-weight: 900;
+}
+
+
+.squad-summary-total small {
+  display: block;
+
+  margin-top: 2px;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: .05em;
+
+  color: var(--muted);
+}
+
+
+.squad-summary-total.tone-final {
+  background: var(--gold-soft);
+}
+
+
+.squad-summary-total.tone-final strong {
+  color: var(--gold);
+}
+
+
+.squad-summary-total.tone-live {
+  background: var(--green-soft);
+}
+
+
+.squad-summary-total.tone-live strong {
+  color: var(--green);
+}
+
+
+.squad-summary-total.tone-upcoming strong {
+  color: var(--muted);
+}
+
+
+/* =====================================================
+   ANALYTICS TAB
+===================================================== */
+
+.analytics-section {
+  margin-bottom: 26px;
+}
+
+
+.analytics-section-title {
+  margin: 0 0 10px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 900;
+
+  letter-spacing: .06em;
+
+  text-transform: uppercase;
+}
+
+
+.position-wide {
+  width: auto;
+
+  min-width: 42px;
+
+  margin-right: 2px;
+
+  font-size: 12px;
+}
+
+
+.analytics-spotlight-card {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  margin-bottom: 10px;
+
+  padding: 14px 15px;
+
+  border: 1px solid var(--border);
+  border-radius: 17px;
+
+  background: var(--surface);
+}
+
+
+.analytics-spotlight-card .spotlight-icon {
+  flex-shrink: 0;
+
+  font-size: 25px;
+}
+
+
+.analytics-spotlight-card .spotlight-body {
+  flex: 1;
+
+  min-width: 0;
+}
+
+
+.analytics-spotlight-card .spotlight-body strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 15px;
+}
+
+
+.analytics-spotlight-card .spotlight-body small {
+  display: block;
+
+  margin-top: 2px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+
+.analytics-spotlight-card .spotlight-value {
+  flex-shrink: 0;
+
+  text-align: right;
+}
+
+
+.analytics-spotlight-card .spotlight-value strong {
+  display: block;
+
+  color: var(--gold);
+
+  font-size: 17px;
+  font-weight: 900;
+}
+
+
+.analytics-spotlight-card .spotlight-value small {
+  display: block;
+
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 8px;
+  font-weight: 800;
+
+  letter-spacing: .03em;
 }

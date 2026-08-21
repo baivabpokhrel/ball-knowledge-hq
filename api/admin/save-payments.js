@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     gameweek,
     zelle,
     payments,
-    winnerEntryId
+    winnerEntryIds
   } = req.body || {};
 
 
@@ -88,25 +88,36 @@ export default async function handler(req, res) {
     ).trim();
 
 
-  const winnerId =
-    winnerEntryId === null ||
-    winnerEntryId === undefined ||
-    winnerEntryId === ''
-      ? null
-      : Number(winnerEntryId);
+  /*
+    A Gameweek can end in a tie, so this is a SET of
+    winner entry IDs, not a single one.
+  */
+
+  const winnerIds =
+    new Set(
+      (
+        Array.isArray(winnerEntryIds)
+          ? winnerEntryIds
+          : []
+      )
+        .map(Number)
+    );
 
 
-  if (
-    winnerId !== null &&
-    (
+  for (
+    const winnerId of winnerIds
+  ) {
+
+    if (
       !Number.isInteger(winnerId) ||
       winnerId <= 0
-    )
-  ) {
-    return res.status(400).json({
-      error:
-        'Invalid winner'
-    });
+    ) {
+      return res.status(400).json({
+        error:
+          'Invalid winner'
+      });
+    }
+
   }
 
 
@@ -157,8 +168,7 @@ export default async function handler(req, res) {
             paid,
 
             winner:
-              winnerId !== null &&
-              entryId === winnerId,
+              winnerIds.has(entryId),
 
             paid_at:
               paid
@@ -198,19 +208,24 @@ export default async function handler(req, res) {
 
 
     /*
-      Make sure selected winner belongs
-      to submitted manager list.
+      Make sure every selected winner belongs
+      to the submitted manager list.
     */
 
-    if (
-      winnerId !== null &&
-      !uniqueIds.has(
-        winnerId
-      )
+    for (
+      const winnerId of winnerIds
     ) {
-      throw new Error(
-        'Selected winner is not part of this league'
-      );
+
+      if (
+        !uniqueIds.has(
+          winnerId
+        )
+      ) {
+        throw new Error(
+          'Selected winner is not part of this league'
+        );
+      }
+
     }
 
 

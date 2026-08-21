@@ -147,10 +147,10 @@ function getZelleForGw(gw) {
 }
 
 
-function winnerForGw(gw) {
+function winnersForGw(gw) {
 
-  const payment =
-    allPayments.find(
+  const payingRows =
+    allPayments.filter(
       item =>
         Number(
           item.gameweek
@@ -161,23 +161,20 @@ function winnerForGw(gw) {
     );
 
 
-  if (!payment) {
-    return null;
-  }
-
-
-  return (
-    managers.find(
-      manager =>
-        Number(
-          manager.entryId
-        ) ===
-        Number(
-          payment.entry_id
+  return payingRows
+    .map(
+      payment =>
+        managers.find(
+          manager =>
+            Number(
+              manager.entryId
+            ) ===
+            Number(
+              payment.entry_id
+            )
         )
-    ) ||
-    null
-  );
+    )
+    .filter(Boolean);
 }
 
 
@@ -290,8 +287,8 @@ function buildDraft(gw) {
   );
 
 
-  const winner =
-    winnerForGw(gw);
+  const winners =
+    winnersForGw(gw);
 
 
   return {
@@ -304,12 +301,15 @@ function buildDraft(gw) {
         gw
       ),
 
-    winnerEntryId:
-      winner
-        ? Number(
-            winner.entryId
-          )
-        : null,
+    winnerEntryIds:
+      new Set(
+        winners.map(
+          winner =>
+            Number(
+              winner.entryId
+            )
+        )
+      ),
 
     payments:
       paymentMap
@@ -379,77 +379,6 @@ function buildGameweekSelect() {
 
 
 /* =====================================================
-   WINNER SELECT
-===================================================== */
-
-function buildWinnerSelect() {
-
-  const select =
-    $('winnerSelect');
-
-
-  if (
-    !select ||
-    !draft
-  ) {
-    return;
-  }
-
-
-  select.innerHTML = `
-    <option value="">
-      No winner selected
-    </option>
-  `;
-
-
-  [...managers]
-    .sort(
-      (a, b) =>
-        String(
-          a.team
-        ).localeCompare(
-          String(
-            b.team
-          )
-        )
-    )
-    .forEach(
-      manager => {
-
-        const option =
-          document.createElement(
-            'option'
-          );
-
-
-        option.value =
-          String(
-            manager.entryId
-          );
-
-
-        option.textContent =
-          `${manager.team} — ${manager.manager}`;
-
-
-        select.appendChild(
-          option
-        );
-      }
-    );
-
-
-  select.value =
-    draft.winnerEntryId
-      ? String(
-          draft.winnerEntryId
-        )
-      : '';
-}
-
-
-/* =====================================================
    RENDER EDITOR
 ===================================================== */
 
@@ -486,9 +415,6 @@ function renderEditor() {
         '';
 
   }
-
-
-  buildWinnerSelect();
 
 
   const paidCount =
@@ -563,21 +489,20 @@ function renderEditor() {
             ]?.paid === true;
 
 
-          const winner =
-            Number(
-              draft.winnerEntryId
-            ) ===
-            Number(
-              manager.entryId
+          const isWinner =
+            draft.winnerEntryIds.has(
+              Number(
+                manager.entryId
+              )
             );
 
 
           return `
-            <label
+            <div
               class="
                 admin-manager-row
                 ${paid ? 'paid-row' : ''}
-                ${winner ? 'winner-row' : ''}
+                ${isWinner ? 'winner-row' : ''}
               "
             >
 
@@ -592,23 +517,34 @@ function renderEditor() {
               <div class="manager-info">
 
                 <strong>
-                  ${escapeHtml(manager.team)}
+                  ${escapeHtml(manager.manager)}
                 </strong>
 
                 <small>
-                  ${escapeHtml(manager.manager)}
+                  ${escapeHtml(manager.team)}
                 </small>
 
               </div>
 
 
+              <button
+                type="button"
+                class="winner-toggle ${isWinner ? 'active' : ''}"
+                data-winner-entry="${manager.entryId}"
+                aria-label="Toggle Gameweek winner"
+                title="Mark/unmark as a GW winner (ties allowed)"
+              >
+                🏆
+              </button>
+
+
               <div class="admin-row-state">
 
                 ${
-                  winner
+                  isWinner
                     ? `
                       <span class="winner-chip">
-                        🏆 WINNER
+                        WINNER
                       </span>
                     `
                     : paid
@@ -626,7 +562,7 @@ function renderEditor() {
 
               </div>
 
-            </label>
+            </div>
           `;
         }
       )
@@ -634,7 +570,8 @@ function renderEditor() {
 
 
   /*
-    Checkbox changes are LOCAL ONLY.
+    Checkbox and winner-toggle changes are LOCAL ONLY
+    until "Save GW" is pressed.
   */
 
   document
@@ -665,6 +602,65 @@ function renderEditor() {
               Preserve manually typed Zelle
               before rerendering.
             */
+
+            if ($('zelleInput')) {
+
+              draft.zelle =
+                $('zelleInput')
+                  .value;
+
+            }
+
+
+            renderEditor();
+
+
+            showMessage(
+              'Unsaved changes',
+              'warning'
+            );
+          }
+        );
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      '.winner-toggle'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            const entryId =
+              Number(
+                button.dataset
+                  .winnerEntry
+              );
+
+
+            if (
+              draft.winnerEntryIds.has(
+                entryId
+              )
+            ) {
+
+              draft.winnerEntryIds.delete(
+                entryId
+              );
+
+            } else {
+
+              draft.winnerEntryIds.add(
+                entryId
+              );
+
+            }
+
 
             if ($('zelleInput')) {
 
@@ -731,8 +727,8 @@ function renderHistory() {
       );
 
 
-    const winner =
-      winnerForGw(
+    const winners =
+      winnersForGw(
         gw
       );
 
@@ -768,8 +764,8 @@ function renderHistory() {
 
           <small>
             ${
-              winner
-                ? `🏆 ${escapeHtml(winner.team)}`
+              winners.length
+                ? `🏆 ${winners.map(w => escapeHtml(w.manager)).join(', ')}`
                 : 'No winner selected'
             }
           </small>
@@ -991,8 +987,8 @@ async function saveDraft() {
               zelle:
                 draft.zelle,
 
-              winnerEntryId:
-                draft.winnerEntryId,
+              winnerEntryIds:
+                [...draft.winnerEntryIds],
 
               payments:
                 payloadPayments
@@ -1259,43 +1255,11 @@ async function loadAllPayments() {
 function bindControls() {
 
   /*
-    WINNER
+    Winner selection now happens per-manager via the
+    trophy toggle button in each row (see renderEditor),
+    which supports marking more than one manager as a
+    winner for a Gameweek that ended in a tie.
   */
-
-  $('winnerSelect')
-    ?.addEventListener(
-      'change',
-      event => {
-
-        if (!draft) {
-          return;
-        }
-
-
-        draft.zelle =
-          $('zelleInput')
-            ?.value ||
-          '';
-
-
-        draft.winnerEntryId =
-          event.target.value
-            ? Number(
-                event.target.value
-              )
-            : null;
-
-
-        renderEditor();
-
-
-        showMessage(
-          'Unsaved changes',
-          'warning'
-        );
-      }
-    );
-
 
   /*
     ZELLE

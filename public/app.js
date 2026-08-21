@@ -14,8 +14,8 @@ const VALID_TABS = [
   'gameweek',
   'payments',
   'predictions',
-  'analytics',
-  'squads'
+  'squads',
+  'analytics'
 ];
 
 
@@ -307,15 +307,15 @@ function zelleForGw(gw) {
 }
 
 
-function manualWinnerForGw(gw) {
+function manualWinnersForGw(gw) {
 
   if (!dashboardData) {
-    return null;
+    return [];
   }
 
 
-  const row =
-    allPayments.find(
+  const rows =
+    allPayments.filter(
       item =>
         Number(
           item.gameweek
@@ -327,11 +327,6 @@ function manualWinnerForGw(gw) {
     );
 
 
-  if (!row) {
-    return null;
-  }
-
-
   const managers =
     Array.isArray(
       dashboardData.managers
@@ -340,16 +335,35 @@ function manualWinnerForGw(gw) {
       : [];
 
 
-  return (
-    managers.find(
-      manager =>
-        Number(
-          manager.entryId
-        ) ===
-        Number(
-          row.entry_id
+  return rows
+    .map(
+      row =>
+        managers.find(
+          manager =>
+            Number(
+              manager.entryId
+            ) ===
+            Number(
+              row.entry_id
+            )
         )
-    ) ||
+    )
+    .filter(Boolean);
+
+}
+
+
+/*
+  Older call sites that only ever expected a single
+  winner. Kept as a thin wrapper so nothing breaks;
+  new code (multi-winner-aware) should prefer
+  manualWinnersForGw.
+*/
+
+function manualWinnerForGw(gw) {
+
+  return (
+    manualWinnersForGw(gw)[0] ||
     null
   );
 
@@ -400,6 +414,15 @@ function standingsRow(
         : '—';
 
 
+  const chip =
+    weekly &&
+    getCurrentGw() ===
+      (gwViewData?.gameweek?.id || 0)
+      ? squadFor(manager.entryId)
+          ?.activeChipLabel
+      : null;
+
+
   return `
     <div class="standing-row">
 
@@ -411,11 +434,16 @@ function standingsRow(
       <div class="manager-info">
 
         <strong>
-          ${escapeHtml(manager.team)}
+          ${escapeHtml(manager.manager)}
+          ${
+            chip
+              ? `<span class="chip-badge">${escapeHtml(chip)}</span>`
+              : ''
+          }
         </strong>
 
         <small>
-          ${escapeHtml(manager.manager)}
+          ${escapeHtml(manager.team)}
         </small>
 
       </div>
@@ -523,25 +551,24 @@ function gwWinsByEntry() {
     gw++
   ) {
 
-    const winner =
-      manualWinnerForGw(
+    const winners =
+      manualWinnersForGw(
         gw
       );
 
 
-    if (!winner) {
-      continue;
+    for (const winner of winners) {
+
+      const key =
+        Number(
+          winner.entryId
+        );
+
+
+      wins[key] =
+        (wins[key] || 0) + 1;
+
     }
-
-
-    const key =
-      Number(
-        winner.entryId
-      );
-
-
-    wins[key] =
-      (wins[key] || 0) + 1;
 
   }
 
@@ -551,34 +578,199 @@ function gwWinsByEntry() {
 }
 
 
-function renderAnalytics() {
+/*
+  Season-wide stats (highest GW score, fraud of the
+  week, most consistent manager) need every manager's
+  full points history - fetched once, lazily, from
+  /api/analytics rather than on every page load.
+*/
+
+let analyticsData =
+  null;
+
+
+let analyticsLoading =
+  false;
+
+
+async function loadAnalyticsData() {
 
   if (
     !dashboardData ||
-    !$('analyticsList')
+    analyticsLoading
   ) {
     return;
   }
 
 
-  const overall =
+  const managers =
     Array.isArray(
-      dashboardData.overall
+      dashboardData.managers
     )
-      ? dashboardData.overall
+      ? dashboardData.managers
       : [];
 
 
-  const currentGw =
-    getCurrentGw();
+  if (!managers.length) {
+    return;
+  }
 
+
+  analyticsLoading =
+    true;
+
+
+  try {
+
+    const entries =
+      managers
+        .map(
+          manager =>
+            manager.entryId
+        )
+        .join(',');
+
+
+    const response =
+      await fetch(
+        `/api/analytics?entries=${entries}&throughGw=${getCurrentGw()}&_=${Date.now()}`,
+        {
+          cache:
+            'no-store'
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        'Unable to load analytics'
+      );
+
+    }
+
+
+    analyticsData =
+      data;
+
+
+    renderAnalytics();
+
+
+  } catch (error) {
+
+    console.error(
+      'Analytics load failed:',
+      error
+    );
+
+
+    if (
+      $('analyticsBody') &&
+      !analyticsData
+    ) {
+
+      $('analyticsBody')
+        .innerHTML = `
+          <div class="empty">
+            ${escapeHtml(error.message)}
+          </div>
+        `;
+
+    }
+
+  } finally {
+
+    analyticsLoading =
+      false;
+
+  }
+
+}
+
+
+function findManagerByEntry(entryId) {
+
+  return (
+    (
+      dashboardData
+        ?.managers ||
+      []
+    ).find(
+      manager =>
+        Number(
+          manager.entryId
+        ) ===
+        Number(entryId)
+    ) ||
+    null
+  );
+
+}
+
+
+function renderAnalytics() {
+
+  if (
+    !dashboardData ||
+    !$('analyticsBody')
+  ) {
+    return;
+  }
+
+
+  const managers =
+    Array.isArray(
+      dashboardData.managers
+    )
+      ? dashboardData.managers
+      : [];
+
+
+  if (!managers.length) {
+
+    $('analyticsBody').innerHTML = `
+      <div class="empty">
+        No analytics yet.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    !analyticsData &&
+    !analyticsLoading
+  ) {
+
+    loadAnalyticsData();
+
+  }
+
+
+  $('analyticsBody').innerHTML =
+    buildGwWinsHtml(managers) +
+    buildSeasonSpotlightHtml(managers) +
+    buildRecentChampionsHtml();
+
+}
+
+
+function buildGwWinsHtml(managers) {
 
   const wins =
     gwWinsByEntry();
 
 
   const rows =
-    overall
+    managers
       .map(
         manager => ({
           manager,
@@ -587,145 +779,373 @@ function renderAnalytics() {
               Number(
                 manager.entryId
               )
-            ] || 0,
-          avg:
-            currentGw > 0
-              ? manager.seasonPoints /
-                currentGw
-              : 0
+            ] || 0
         })
+      )
+      .filter(
+        row => row.wins > 0
+      )
+      .sort(
+        (a, b) =>
+          b.wins - a.wins ||
+          a.manager.manager.localeCompare(
+            b.manager.manager
+          )
       );
 
 
-  const topWins =
-    rows.reduce(
-      (best, row) =>
-        row.wins > best
-          ? row.wins
-          : best,
-      0
-    );
+  return `
+    <div class="analytics-section">
+
+      <p class="analytics-section-title">
+        🏆 GW Wins
+      </p>
+
+      <div class="standings-list">
+        ${
+          rows.length
+            ? rows
+                .map(
+                  (row, index) => `
+                    <div class="standing-row">
+
+                      <div class="position">
+                        ${index + 1}
+                      </div>
 
 
-  const leaders =
-    topWins > 0
-      ? rows.filter(
-          row =>
-            row.wins ===
-            topWins
-        )
-      : [];
+                      <div class="manager-info">
+
+                        <strong>
+                          ${escapeHtml(row.manager.manager)}
+                        </strong>
+
+                        <small>
+                          ${escapeHtml(row.manager.team)}
+                        </small>
+
+                      </div>
 
 
-  if ($('analyticsSummary')) {
+                      <div class="points">
 
-    $('analyticsSummary')
-      .innerHTML =
-        leaders.length
-          ? `
-            <div class="award-card" style="margin-bottom:22px;">
-              <span class="award-icon">🏆</span>
-              <div>
-                <small>MOST GW WINS</small>
-                <h3>
-                  ${
-                    leaders
-                      .map(
-                        row =>
-                          escapeHtml(
-                            row.manager.team
-                          )
-                      )
-                      .join(', ')
-                  }
-                </h3>
-                <p>
-                  ${topWins} Gameweek
-                  ${topWins === 1 ? 'win' : 'wins'}
-                  this season.
-                </p>
+                        <strong>
+                          ${row.wins} 🏆
+                        </strong>
+
+                        <small>
+                          ${row.wins === 1 ? 'WIN' : 'WINS'}
+                        </small>
+
+                      </div>
+
+                    </div>
+                  `
+                )
+                .join('')
+            : `
+              <div class="empty">
+                No Gameweek winners recorded yet.
               </div>
-            </div>
-          `
-          : '';
+            `
+        }
+      </div>
 
-  }
-
-
-  $('analyticsList').innerHTML =
-    rows.length
-      ? rows
-          .sort(
-            (a, b) =>
-              b.manager.seasonPoints -
-                a.manager.seasonPoints ||
-              a.manager.team.localeCompare(
-                b.manager.team
-              )
-          )
-          .map(
-            (row, index) =>
-              analyticsRow(
-                row,
-                index
-              )
-          )
-          .join('')
-      : `
-        <div class="empty">
-          No analytics yet.
-        </div>
-      `;
+    </div>
+  `;
 
 }
 
 
-function analyticsRow(
-  row,
-  index
-) {
+function spotlightCard({
+  icon,
+  manager,
+  fallback,
+  value,
+  valueLabel
+}) {
 
-  const manager =
-    row.manager;
+  return `
+    <div class="analytics-spotlight-card">
+
+      <span class="spotlight-icon">
+        ${icon}
+      </span>
+
+
+      <div class="spotlight-body">
+
+        <strong>
+          ${
+            manager
+              ? escapeHtml(manager.manager)
+              : escapeHtml(fallback || 'Unknown')
+          }
+        </strong>
+
+        <small>
+          ${manager ? escapeHtml(manager.team) : ''}
+        </small>
+
+      </div>
+
+
+      <div class="spotlight-value">
+
+        <strong>
+          ${value}
+        </strong>
+
+        <small>
+          ${valueLabel}
+        </small>
+
+      </div>
+
+    </div>
+  `;
+
+}
+
+
+function buildSeasonSpotlightHtml(managers) {
+
+  if (!analyticsData) {
+
+    return `
+      <div class="analytics-section">
+        <p class="analytics-section-title">
+          Season Spotlight
+        </p>
+        <div class="empty">
+          Loading season stats…
+        </div>
+      </div>
+    `;
+
+  }
+
+
+  const entries =
+    Array.isArray(
+      analyticsData.entries
+    )
+      ? analyticsData.entries
+      : [];
+
+
+  const cards = [];
+
+
+  if (analyticsData.highestGwScore) {
+
+    const manager =
+      findManagerByEntry(
+        analyticsData.highestGwScore.entryId
+      );
+
+
+    cards.push(
+      spotlightCard({
+        icon: '🔥',
+        manager,
+        fallback: 'Unknown',
+        value:
+          `${analyticsData.highestGwScore.points} pts`,
+        valueLabel:
+          `GW${analyticsData.highestGwScore.gw} • HIGHEST SCORE`
+      })
+    );
+
+  }
+
+
+  const topFraud =
+    entries
+      .filter(
+        entry =>
+          entry.lastPlaceCount > 0
+      )
+      .sort(
+        (a, b) =>
+          b.lastPlaceCount -
+          a.lastPlaceCount
+      )[0];
+
+
+  if (topFraud) {
+
+    const manager =
+      findManagerByEntry(
+        topFraud.entryId
+      );
+
+
+    cards.push(
+      spotlightCard({
+        icon: '💀',
+        manager,
+        fallback: 'Unknown',
+        value:
+          topFraud.lastPlaceCount,
+        valueLabel:
+          `${topFraud.lastPlaceCount === 1 ? 'LAST-PLACE FINISH' : 'LAST-PLACE FINISHES'} • FRAUD OF THE WEEK`
+      })
+    );
+
+  }
+
+
+  const mostConsistent =
+    entries
+      .filter(
+        entry => entry.weeksPlayed >= 2
+      )
+      .sort(
+        (a, b) =>
+          a.stdDev - b.stdDev
+      )[0];
+
+
+  if (mostConsistent) {
+
+    const manager =
+      findManagerByEntry(
+        mostConsistent.entryId
+      );
+
+
+    cards.push(
+      spotlightCard({
+        icon: '📊',
+        manager,
+        fallback: 'Unknown',
+        value:
+          mostConsistent.seasonAvg.toFixed(1),
+        valueLabel:
+          'AVG PTS • MOST CONSISTENT'
+      })
+    );
+
+  }
+
+
+  if (!cards.length) {
+
+    return `
+      <div class="analytics-section">
+        <p class="analytics-section-title">
+          Season Spotlight
+        </p>
+        <div class="empty">
+          Not enough Gameweeks played yet.
+        </div>
+      </div>
+    `;
+
+  }
 
 
   return `
-    <div class="standing-row">
+    <div class="analytics-section">
+      <p class="analytics-section-title">
+        Season Spotlight
+      </p>
+      ${cards.join('')}
+    </div>
+  `;
 
-      <div class="position">
-        ${index + 1}
-      </div>
-
-
-      <div class="manager-info">
-
-        <strong>
-          ${escapeHtml(manager.team)}
-        </strong>
-
-        <small>
-          ${escapeHtml(manager.manager)}
-          &middot;
-          ${row.wins}
-          GW
-          ${row.wins === 1 ? 'win' : 'wins'}
-          &middot;
-          ${row.avg.toFixed(1)} avg
-        </small>
-
-      </div>
+}
 
 
-      <div class="points">
+function buildRecentChampionsHtml() {
 
-        <strong>
-          ${manager.seasonPoints}
-        </strong>
+  const currentGw =
+    getCurrentGw();
 
-        <small>
-          SEASON PTS
-        </small>
 
+  const rows = [];
+
+
+  for (
+    let gw = currentGw;
+    gw >= 1 && rows.length < 5;
+    gw--
+  ) {
+
+    const winners =
+      manualWinnersForGw(gw);
+
+
+    if (!winners.length) {
+      continue;
+    }
+
+
+    rows.push({
+      gw,
+      winners
+    });
+
+  }
+
+
+  return `
+    <div class="analytics-section">
+
+      <p class="analytics-section-title">
+        Recent Champions
+      </p>
+
+      <div class="standings-list">
+        ${
+          rows.length
+            ? rows
+                .map(
+                  row => `
+                    <div class="standing-row">
+
+                      <div class="position position-wide">
+                        GW${row.gw}
+                      </div>
+
+
+                      <div class="manager-info">
+
+                        <strong>
+                          ${
+                            row.winners
+                              .map(
+                                winner =>
+                                  escapeHtml(winner.manager)
+                              )
+                              .join(', ')
+                          }
+                        </strong>
+
+                        <small>
+                          ${
+                            row.winners
+                              .map(
+                                winner =>
+                                  escapeHtml(winner.team)
+                              )
+                              .join(', ')
+                          }
+                        </small>
+
+                      </div>
+
+                    </div>
+                  `
+                )
+                .join('')
+            : `
+              <div class="empty">
+                No results recorded yet.
+              </div>
+            `
+        }
       </div>
 
     </div>
@@ -1015,30 +1435,36 @@ function renderPredictions() {
     );
 
 
-  const summary = `
-    <div class="award-card" style="margin-bottom:22px;">
-      <span class="award-icon">🔮</span>
-      <div>
-        <small>PREDICTED LEADER</small>
-        <h3>
-          ${
-            leaders
-              .map(
-                row =>
-                  escapeHtml(
-                    row.manager.team
-                  )
-              )
-              .join(', ')
-          }
-          — ${leaderTotal.toFixed(1)} pts
-        </h3>
-        <p>
-          ${predictionReasonText(rows[0].squad)}
-        </p>
-      </div>
-    </div>
-  `;
+  const anyLive =
+    rows.some(
+      row =>
+        row.squad.liveStatus !==
+        'upcoming'
+    );
+
+
+  const summary =
+    buildAwardCardHTML({
+      tone: 'predicted',
+      icon: '🔮',
+      eyebrow:
+        leaders.length > 1
+          ? 'PREDICTED LEADERS'
+          : 'PREDICTED LEADER',
+      tag:
+        anyLive
+          ? 'UPDATING LIVE'
+          : 'PROJECTED',
+      winners:
+        leaders.map(
+          row => ({
+            name: row.manager.manager,
+            sub: row.manager.team,
+            value: `${row.squad.predictedTotal.toFixed(1)} pts`
+          })
+        ),
+      note: predictionReasonText(rows[0].squad)
+    });
 
 
   const list =
@@ -1074,12 +1500,25 @@ function predictionReasonText(squad) {
     contributors
       .map(
         player =>
-          `${escapeHtml(player.name)}${player.isCaptain ? ' (C)' : ''} ${player.predictedContribution.toFixed(1)} xPts`
+          `${statusDot(player.status)}${escapeHtml(player.name)}${player.isCaptain ? ' (C)' : ''} ${player.predictedContribution.toFixed(1)}`
       )
       .join(', ');
 
 
-  return `Driven by ${parts}.`;
+  return `Driven by ${parts}. Live players use actual points; others use FPL's projection.`;
+
+}
+
+
+/*
+  A tiny colored dot: green = fixture live, grey = fixture
+  finished, hollow = fixture yet to kick off. Lets a manager
+  see at a glance which of their scores are still "in motion".
+*/
+
+function statusDot(status) {
+
+  return `<span class="player-status-dot ${status || 'upcoming'}"></span>`;
 
 }
 
@@ -1096,13 +1535,21 @@ function predictionRow(row) {
       : '';
 
 
+  const statusLabel =
+    squad.liveStatus === 'final'
+      ? 'FINAL'
+      : squad.liveStatus === 'live'
+        ? 'LIVE'
+        : 'PROJECTED';
+
+
   return `
     <div class="standing-row">
 
       <div class="manager-info">
 
         <strong>
-          ${escapeHtml(row.manager.team)}
+          ${escapeHtml(row.manager.manager)}
           ${chip}
         </strong>
 
@@ -1120,7 +1567,7 @@ function predictionRow(row) {
         </strong>
 
         <small>
-          xPTS
+          ${statusLabel}
         </small>
 
       </div>
@@ -1226,7 +1673,7 @@ function renderSquadsTab() {
               class="squad-chip ${active ? 'active' : ''}"
               data-entry="${manager.entryId}"
             >
-              ${escapeHtml(manager.team)}
+              ${escapeHtml(manager.manager)}
               ${
                 squad?.activeChipLabel
                   ? '⚡'
@@ -1308,16 +1755,35 @@ function renderSelectedSquad() {
       : '';
 
 
+  const liveStatus =
+    squad.liveStatus || 'upcoming';
+
+
+  const totalLabel =
+    liveStatus === 'final'
+      ? 'FINAL SCORE'
+      : liveStatus === 'live'
+        ? 'LIVE SCORE'
+        : 'PROJECTED';
+
+
+  const totalValue =
+    liveStatus === 'final' &&
+    squad.actualPoints != null
+      ? squad.actualPoints
+      : squad.predictedTotal;
+
+
   $('squadDetail').innerHTML = `
 
-    <div class="award-card" style="margin-bottom:18px;">
+    <div class="award-card squad-summary-card" style="margin-bottom:18px;">
       <span class="award-icon">👕</span>
-      <div>
-        <small>${escapeHtml(manager.manager)}</small>
+      <div class="squad-summary-info">
         <h3>
-          ${escapeHtml(manager.team)}
+          ${escapeHtml(manager.manager)}
           ${chip}
         </h3>
+        <small>${escapeHtml(manager.team)}</small>
         <p>
           Captain
           ${squad.captain ? escapeHtml(squad.captain.name) : '—'}
@@ -1325,6 +1791,10 @@ function renderSelectedSquad() {
           Vice
           ${squad.viceCaptain ? escapeHtml(squad.viceCaptain.name) : '—'}
         </p>
+      </div>
+      <div class="squad-summary-total tone-${liveStatus}">
+        <strong>${totalValue}</strong>
+        <small>${totalLabel}</small>
       </div>
     </div>
 
@@ -1375,6 +1845,24 @@ function squadPlayerRow(player) {
         : '';
 
 
+  const isUpcoming =
+    (player.status || 'upcoming') === 'upcoming';
+
+
+  const displayPoints =
+    isUpcoming
+      ? player.expectedPoints
+      : player.livePoints;
+
+
+  const pointsLabel =
+    isUpcoming
+      ? 'PROJ'
+      : player.status === 'live'
+        ? 'LIVE'
+        : 'PTS';
+
+
   return `
     <div class="standing-row">
 
@@ -1386,7 +1874,7 @@ function squadPlayerRow(player) {
       <div class="manager-info">
 
         <strong>
-          ${escapeHtml(player.name)}${badge}
+          ${statusDot(player.status)}${escapeHtml(player.name)}${badge}
         </strong>
 
         <small>
@@ -1399,11 +1887,11 @@ function squadPlayerRow(player) {
       <div class="points">
 
         <strong>
-          ${player.expectedPoints.toFixed(1)}
+          ${Number(displayPoints || 0).toFixed(1)}
         </strong>
 
         <small>
-          xPTS
+          ${pointsLabel}
         </small>
 
       </div>
@@ -1762,32 +2250,16 @@ function renderGameweekAward() {
     'PRE-SEASON'
   ) {
 
-    if ($('awardTitle')) {
-
-      $('awardTitle')
-        .textContent =
-          'Waiting for Gameweek';
-
-    }
-
-
-    if ($('awardText')) {
-
-      $('awardText')
-        .textContent =
-          'No leader yet';
-
-    }
-
-
-    if ($('awardNote')) {
-
-      $('awardNote')
-        .textContent =
-          `GW${gw} has not started yet.`;
-
-    }
-
+    setAwardCard(
+      buildAwardCardHTML({
+        tone: 'muted',
+        icon: '⏳',
+        eyebrow: 'WAITING FOR GAMEWEEK',
+        tag: null,
+        winners: [],
+        note: `GW${gw} has not started yet.`
+      })
+    );
 
     return;
 
@@ -1808,41 +2280,26 @@ function renderGameweekAward() {
       [];
 
 
-    if ($('awardTitle')) {
-
-      $('awardTitle')
-        .textContent =
+    setAwardCard(
+      buildAwardCardHTML({
+        tone: 'final',
+        icon: '🏆',
+        eyebrow:
           winners.length > 1
-            ? 'Official GW Winners'
-            : 'Official GW Winner';
-
-    }
-
-
-    if ($('awardText')) {
-
-      $('awardText')
-        .textContent =
-          winners.length
-            ? winners
-                .map(
-                  winner =>
-                    `${winner.team} — ${winner.gameweekPoints} pts`
-                )
-                .join(', ')
-            : '—';
-
-    }
-
-
-    if ($('awardNote')) {
-
-      $('awardNote')
-        .textContent =
-          `Final GW${gw} result after FPL checks.`;
-
-    }
-
+            ? 'OFFICIAL GW WINNERS'
+            : 'OFFICIAL GW WINNER',
+        tag: 'FINAL',
+        winners:
+          winners.map(
+            winner => ({
+              name: winner.manager,
+              sub: winner.team,
+              value: `${winner.gameweekPoints} pts`
+            })
+          ),
+        note: `Final GW${gw} result after FPL checks.`
+      })
+    );
 
     return;
 
@@ -1884,38 +2341,107 @@ function renderGameweekAward() {
   }
 
 
-  if ($('awardTitle')) {
+  setAwardCard(
+    buildAwardCardHTML({
+      tone: 'live',
+      icon: '👑',
+      eyebrow:
+        leaders.length > 1
+          ? 'PROVISIONAL LEADERS'
+          : 'PROVISIONAL LEADER',
+      tag: 'LIVE',
+      winners:
+        leaders.map(
+          leader => ({
+            name: leader.manager,
+            sub: leader.team,
+            value: `${leader.gameweekPoints} pts`
+          })
+        ),
+      note: 'Points may still change after bonuses and corrections.'
+    })
+  );
 
-    $('awardTitle')
-      .textContent =
-        'Provisional Leader';
+}
+
+
+/* =====================================================
+   AWARD CARD (shared: Official Winner / Provisional /
+   Predicted Leader, all tie-aware)
+===================================================== */
+
+function setAwardCard(html) {
+
+  if ($('awardCard')) {
+
+    $('awardCard').innerHTML =
+      html;
 
   }
 
-
-  if ($('awardText')) {
-
-    $('awardText')
-      .textContent =
-        leaders.length
-          ? leaders
-              .map(
-                leader =>
-                  `${leader.team} — ${leader.gameweekPoints} pts`
-              )
-              .join(', ')
-          : '—';
-
-  }
+}
 
 
-  if ($('awardNote')) {
+function buildAwardCardHTML({
+  tone,
+  icon,
+  eyebrow,
+  tag,
+  winners,
+  note
+}) {
 
-    $('awardNote')
-      .textContent =
-        'Points may still change after bonuses and corrections.';
+  return `
+    <div class="gw-award-card tone-${tone}">
 
-  }
+      <div class="gw-award-head">
+
+        <span class="gw-award-icon">${icon}</span>
+
+        <span class="gw-award-eyebrow">
+          ${escapeHtml(eyebrow)}
+        </span>
+
+        ${
+          tag
+            ? `<span class="gw-award-tag ${tone}">${escapeHtml(tag)}</span>`
+            : ''
+        }
+
+      </div>
+
+
+      ${
+        winners.length
+          ? `
+            <div class="gw-award-winners">
+              ${
+                winners
+                  .map(
+                    winner => `
+                      <div class="gw-award-winner">
+                        <div>
+                          <strong>${escapeHtml(winner.name)}</strong>
+                          <small>${escapeHtml(winner.sub)}</small>
+                        </div>
+                        <span class="gw-award-pts">${escapeHtml(winner.value)}</span>
+                      </div>
+                    `
+                  )
+                  .join('')
+              }
+            </div>
+          `
+          : ''
+      }
+
+
+      <p class="gw-award-note">
+        ${note}
+      </p>
+
+    </div>
+  `;
 
 }
 
@@ -1974,36 +2500,26 @@ function renderPredictedAward() {
     );
 
 
-  if ($('awardTitle')) {
-
-    $('awardTitle')
-      .textContent =
-        'Predicted Leader';
-
-  }
-
-
-  if ($('awardText')) {
-
-    $('awardText')
-      .textContent =
-        leaders
-          .map(
-            row =>
-              `${row.manager.team} — ${row.squad.predictedTotal.toFixed(1)} xPts`
-          )
-          .join(', ');
-
-  }
-
-
-  if ($('awardNote')) {
-
-    $('awardNote')
-      .textContent =
-        `${predictionReasonText(ranked[0].squad)} See the Predict tab for the full breakdown.`;
-
-  }
+  setAwardCard(
+    buildAwardCardHTML({
+      tone: 'predicted',
+      icon: '🔮',
+      eyebrow:
+        leaders.length > 1
+          ? 'PREDICTED LEADERS'
+          : 'PREDICTED LEADER',
+      tag: 'PROJECTED',
+      winners:
+        leaders.map(
+          row => ({
+            name: row.manager.manager,
+            sub: row.manager.team,
+            value: `${row.squad.predictedTotal.toFixed(1)} pts`
+          })
+        ),
+      note: `${predictionReasonText(ranked[0].squad)} See the Predict tab for the full breakdown.`
+    })
+  );
 
 }
 
@@ -2087,9 +2603,18 @@ function renderPaymentHistory() {
       );
 
 
-    const winner =
-      manualWinnerForGw(
+    const winners =
+      manualWinnersForGw(
         gw
+      );
+
+
+    const winnerIds =
+      new Set(
+        winners.map(
+          w =>
+            Number(w.entryId)
+        )
       );
 
 
@@ -2106,22 +2631,14 @@ function renderPaymentHistory() {
           (a, b) => {
 
             const aWinner =
-              winner &&
-              Number(
-                winner.entryId
-              ) ===
-              Number(
-                a.entryId
+              winnerIds.has(
+                Number(a.entryId)
               );
 
 
             const bWinner =
-              winner &&
-              Number(
-                winner.entryId
-              ) ===
-              Number(
-                b.entryId
+              winnerIds.has(
+                Number(b.entryId)
               );
 
 
@@ -2164,10 +2681,10 @@ function renderPaymentHistory() {
 
 
             return String(
-              a.team
+              a.manager
             ).localeCompare(
               String(
-                b.team
+                b.manager
               )
             );
 
@@ -2184,12 +2701,8 @@ function renderPaymentHistory() {
 
 
             const isWinner =
-              winner &&
-              Number(
-                winner.entryId
-              ) ===
-              Number(
-                manager.entryId
+              winnerIds.has(
+                Number(manager.entryId)
               );
 
 
@@ -2218,11 +2731,11 @@ function renderPaymentHistory() {
                 <div class="manager-info">
 
                   <strong>
-                    ${escapeHtml(manager.team)}
+                    ${escapeHtml(manager.manager)}
                   </strong>
 
                   <small>
-                    ${escapeHtml(manager.manager)}
+                    ${escapeHtml(manager.team)}
                   </small>
 
                 </div>
@@ -2282,8 +2795,8 @@ function renderPaymentHistory() {
 
             <small>
               ${
-                winner
-                  ? `🏆 ${escapeHtml(winner.team)}`
+                winners.length
+                  ? `🏆 ${winners.map(w => escapeHtml(w.manager)).join(', ')}`
                   : remaining === 0
                     ? '✓ All payments received'
                     : `${remaining} payment${remaining === 1 ? '' : 's'} remaining`
@@ -2351,10 +2864,15 @@ function renderPaymentHistory() {
             <p class="zelle-help">
 
               $20 entry
+              ${
+                winners.length > 1
+                  ? ` per winner (${winners.length}-way tie)`
+                  : ''
+              }
 
               ${
-                winner
-                  ? ` • Payment goes to ${escapeHtml(winner.team)}`
+                winners.length
+                  ? ` • Payment goes to ${winners.map(w => escapeHtml(w.manager)).join(', ')}`
                   : ' • Winner not selected yet'
               }
 
@@ -2774,7 +3292,7 @@ function buildReminderText(gw) {
     unpaid
       .map(
         manager =>
-          `• ${manager.team} — ${manager.manager}`
+          `• ${manager.manager} (${manager.team})`
       )
       .join('\n');
 
@@ -2910,11 +3428,11 @@ function openShareModal(gw) {
               <div>
 
                 <strong>
-                  ${escapeHtml(manager.team)}
+                  ${escapeHtml(manager.manager)}
                 </strong>
 
                 <small>
-                  ${escapeHtml(manager.manager)}
+                  ${escapeHtml(manager.team)}
                 </small>
 
               </div>
@@ -3524,7 +4042,7 @@ function createReminderCanvas(gw) {
 
 
         /*
-          TEAM
+          MANAGER
         */
 
         ctx.fillStyle =
@@ -3536,14 +4054,14 @@ function createReminderCanvas(gw) {
 
 
         ctx.fillText(
-          manager.team,
+          manager.manager,
           155,
           y + 53
         );
 
 
         /*
-          MANAGER
+          TEAM
         */
 
         ctx.fillStyle =
@@ -3555,7 +4073,7 @@ function createReminderCanvas(gw) {
 
 
         ctx.fillText(
-          manager.manager,
+          manager.team,
           155,
           y + 90
         );
@@ -4575,6 +5093,58 @@ setInterval(
 
   },
   30000
+);
+
+
+/* =====================================================
+   LIVE SQUADS/PREDICTIONS AUTO-REFRESH
+
+   While the current Gameweek has matches in progress,
+   FPL's own live points keep changing - so the award
+   card, Predict tab and Squads tab need to keep pulling
+   fresh data too. Once every fixture in the Gameweek is
+   finished, every squad's liveStatus flips to 'final'
+   and this stops polling on its own.
+===================================================== */
+
+function anySquadStillLive() {
+
+  return !!(
+    squadsData &&
+    Array.isArray(
+      squadsData.squads
+    ) &&
+    squadsData.squads.some(
+      squad =>
+        squad.liveStatus ===
+        'live'
+    )
+  );
+
+}
+
+
+setInterval(
+  () => {
+
+    if (
+      document.visibilityState ===
+        'visible' &&
+      dashboardData &&
+      gameweekHasStarted() &&
+      !squadsLoading &&
+      (
+        !squadsData ||
+        anySquadStillLive()
+      )
+    ) {
+
+      loadSquadsData();
+
+    }
+
+  },
+  60000
 );
 
 

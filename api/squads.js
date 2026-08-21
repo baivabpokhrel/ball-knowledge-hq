@@ -58,8 +58,15 @@ function chipLabel(code) {
 
   Returns each manager's picks for that Gameweek
   (captain, vice-captain, chip, starting XI, bench)
-  plus a predicted-points figure per manager built
-  from FPL's own "ep_this" (expected points) values.
+  plus a blended live/predicted-points figure per
+  manager: for any player whose real-life match has
+  already kicked off, we use their actual live points
+  (FPL's own "event_points", which updates in real time
+  during play); for a player who hasn't played yet, we
+  fall back to FPL's own "ep_this" (expected points).
+  That means the total updates itself as the Gameweek
+  goes on - all-projected before kickoff, a mix during
+  play, and all-actual once every fixture is finished.
 
   Only meaningful for a Gameweek whose deadline has
   already passed - FPL's picks endpoint hides other
@@ -85,7 +92,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const bootstrap = await getJson(`${FPL}/bootstrap-static/`);
+    const [bootstrap, fixtures] = await Promise.all([
+      getJson(`${FPL}/bootstrap-static/`),
+      getJson(`${FPL}/fixtures/?event=${gw}`).catch(() => [])
+    ]);
 
     const elementsById = new Map(
       bootstrap.elements.map(element => [element.id, element])
@@ -98,6 +108,27 @@ export default async function handler(req, res) {
     const typesById = new Map(
       bootstrap.element_types.map(type => [type.id, type])
     );
+
+    /*
+      Which teams have a fixture that's already kicked off
+      (live or finished) vs one still to come, for THIS GW.
+      A team with no fixture data at all (blank GW) is left
+      out of both sets and treated as "not started".
+    */
+
+    const startedTeamIds = new Set();
+    const finishedTeamIds = new Set();
+
+    for (const fixture of Array.isArray(fixtures) ? fixtures : []) {
+      if (fixture.started) {
+        startedTeamIds.add(fixture.team_h);
+        startedTeamIds.add(fixture.team_a);
+      }
+      if (fixture.finished || fixture.finished_provisional) {
+        finishedTeamIds.add(fixture.team_h);
+        finishedTeamIds.add(fixture.team_a);
+      }
+    }
 
     const squads = await Promise.all(
       entryIds.map(async entryId => {
@@ -112,6 +143,8 @@ export default async function handler(req, res) {
 
           let predictedTotal = 0;
           const contributions = [];
+          let everyStarterFinished = true;
+          let anyStarterStarted = false;
 
           const picks = rawPicks
             .slice()
@@ -125,9 +158,26 @@ export default async function handler(req, res) {
                 ? typesById.get(element.element_type)
                 : null;
 
+              const teamId = element?.team;
+              const started = teamId != null && startedTeamIds.has(teamId);
+              const finished = teamId != null && finishedTeamIds.has(teamId);
+
               const epThis = element
                 ? Number(element.ep_this || 0)
                 : 0;
+
+              const livePoints = element
+                ? Number(element.event_points || 0)
+                : 0;
+
+              /*
+                The blended number: real points once the
+                player's match has started, FPL's own
+                projection until then.
+              */
+
+              const pointsBasis =
+                started ? livePoints : epThis;
 
               /*
                 FPL's own "multiplier" already reflects
@@ -137,10 +187,15 @@ export default async function handler(req, res) {
                 we just multiply straight through.
               */
 
-              const contribution =
-                epThis * (pick.multiplier || 0);
+              const multiplier = pick.multiplier || 0;
+              const contribution = pointsBasis * multiplier;
 
               predictedTotal += contribution;
+
+              if (multiplier > 0) {
+                anyStarterStarted = anyStarterStarted || started;
+                everyStarterFinished = everyStarterFinished && finished;
+              }
 
               const player = {
                 id: pick.element,
@@ -149,17 +204,18 @@ export default async function handler(req, res) {
                 position: type?.singular_name_short || '',
                 slot: pick.position,
                 onBench: pick.position > 11,
-                multiplier: pick.multiplier || 0,
+                multiplier,
                 isCaptain: !!pick.is_captain,
                 isViceCaptain: !!pick.is_vice_captain,
-                eventPoints: element?.event_points ?? 0,
+                status: finished ? 'final' : started ? 'live' : 'upcoming',
+                livePoints,
                 expectedPoints:
                   Math.round(epThis * 10) / 10,
                 predictedContribution:
                   Math.round(contribution * 10) / 10
               };
 
-              if (pick.multiplier > 0) {
+              if (multiplier > 0) {
                 contributions.push(player);
               }
 
@@ -179,6 +235,10 @@ export default async function handler(req, res) {
             picks.find(player => player.isViceCaptain) ||
             null;
 
+          const startingXI = picks.filter(
+            player => !player.onBench
+          );
+
           return {
             entryId,
             error: null,
@@ -193,12 +253,16 @@ export default async function handler(req, res) {
                 ?.event_transfers_cost ?? 0,
             predictedTotal:
               Math.round(predictedTotal * 10) / 10,
+            liveStatus:
+              !anyStarterStarted
+                ? 'upcoming'
+                : everyStarterFinished
+                  ? 'final'
+                  : 'live',
             captain,
             viceCaptain,
             topContributors: contributions.slice(0, 3),
-            startingXI: picks.filter(
-              player => !player.onBench
-            ),
+            startingXI,
             bench: picks.filter(
               player => player.onBench
             )

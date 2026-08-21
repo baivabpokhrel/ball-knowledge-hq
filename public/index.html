@@ -107,21 +107,21 @@
 
       <button
         class="nav-button"
-        data-tab="analytics"
-        type="button"
-      >
-        <span>📊</span>
-        Analytics
-      </button>
-
-
-      <button
-        class="nav-button"
         data-tab="squads"
         type="button"
       >
         <span>👕</span>
         Squads
+      </button>
+
+
+      <button
+        class="nav-button"
+        data-tab="analytics"
+        type="button"
+      >
+        <span>📊</span>
+        Analytics
       </button>
 
     </nav>
@@ -194,27 +194,13 @@
 
       <!-- WINNER / LEADER -->
 
-      <section class="award-card">
+      <section
+        id="awardCard"
+        class="gw-award-card"
+      >
 
-        <span class="award-icon">
-          👑
-        </span>
-
-
-        <div>
-
-          <small id="awardTitle">
-            Gameweek Leader
-          </small>
-
-          <h3 id="awardText">
-            —
-          </h3>
-
-          <p id="awardNote">
-            —
-          </p>
-
+        <div class="empty">
+          Loading…
         </div>
 
       </section>
@@ -332,48 +318,6 @@
 
 
     <!-- ==================================================
-         ANALYTICS
-    =================================================== -->
-
-    <section
-      id="analytics"
-      class="panel"
-      hidden
-    >
-
-      <div class="section-heading">
-
-        <h2>
-          League Analytics
-        </h2>
-
-        <p>
-          GW wins, season points and averages for every manager.
-        </p>
-
-      </div>
-
-
-      <div
-        id="analyticsSummary"
-      ></div>
-
-
-      <div
-        id="analyticsList"
-        class="standings-list"
-      >
-
-        <div class="empty">
-          Loading analytics…
-        </div>
-
-      </div>
-
-    </section>
-
-
-    <!-- ==================================================
          SQUADS
     =================================================== -->
 
@@ -408,6 +352,40 @@
 
         <div class="empty">
           Loading squads…
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         ANALYTICS
+    =================================================== -->
+
+    <section
+      id="analytics"
+      class="panel"
+      hidden
+    >
+
+      <div class="section-heading">
+
+        <h2>
+          🏆 League Analytics
+        </h2>
+
+        <p>
+          Wins, streaks and stats for the whole season.
+        </p>
+
+      </div>
+
+
+      <div id="analyticsBody">
+
+        <div class="empty">
+          Loading analytics…
         </div>
 
       </div>
@@ -523,7 +501,7 @@
   </div>
 
 
-  <script src="/app.js?v=41"></script>
+  <script src="/app.js?v=42"></script>
 
 </body>
 
