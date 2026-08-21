@@ -2634,3 +2634,285 @@ p {
 
   letter-spacing: .03em;
 }
+
+
+/* =====================================================
+   LEAGUE PICKS CARD (ownership/captaincy highlights,
+   shown on the GW tab)
+===================================================== */
+
+.league-picks-card {
+  margin-bottom: 22px;
+
+  padding: 14px 15px;
+
+  border: 1px solid var(--border);
+  border-radius: 17px;
+
+  background: var(--surface);
+}
+
+
+.league-picks-title {
+  margin: 0 0 10px;
+
+  color: var(--gold);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: .06em;
+}
+
+
+.league-picks-row {
+  display: flex;
+
+  gap: 10px;
+}
+
+
+.league-picks-stat {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 10px 11px;
+
+  border-radius: 13px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .03
+    );
+}
+
+
+.league-picks-stat strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 13px;
+}
+
+
+.league-picks-stat small {
+  display: block;
+
+  margin-top: 3px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+
+/* =====================================================
+   SQUAD PITCH VIEW (Squads tab - formation layout)
+===================================================== */
+
+.pitch {
+  display: flex;
+  flex-direction: column;
+
+  justify-content: space-evenly;
+
+  gap: 16px;
+
+  min-height: 380px;
+
+  margin-bottom: 20px;
+  padding: 20px 4px 18px;
+
+  border: 1px solid #164a2c;
+  border-radius: 19px;
+
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      #1c6a3d 0px,
+      #1c6a3d 46px,
+      #1f7442 46px,
+      #1f7442 92px
+    );
+}
+
+
+.pitch-row {
+  display: flex;
+
+  justify-content: space-evenly;
+
+  align-items: flex-start;
+
+  gap: 2px;
+}
+
+
+.bench-strip {
+  display: flex;
+
+  gap: 8px;
+
+  padding: 12px 10px;
+
+  overflow-x: auto;
+
+  -webkit-overflow-scrolling: touch;
+
+  border: 1px solid var(--border);
+  border-radius: 16px;
+
+  background: var(--surface);
+}
+
+
+.pitch-player {
+  width: 68px;
+  flex-shrink: 0;
+
+  text-align: center;
+
+  color: var(--text);
+}
+
+
+.pitch-shirt-wrap {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 38px;
+  height: 38px;
+
+  margin: 0 auto 5px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(
+      0,
+      0,
+      0,
+      .28
+    );
+
+  font-size: 19px;
+}
+
+
+.bench-strip .pitch-shirt-wrap {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      .06
+    );
+}
+
+
+.pitch-armband {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+
+  width: 15px;
+  height: 15px;
+
+  border-radius: 50%;
+
+  background: var(--gold);
+
+  color: #1a1400;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 15px;
+}
+
+
+.pitch-shirt-wrap .player-status-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+
+  margin-right: 0;
+
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .4);
+}
+
+
+.pitch-player-name {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+
+.pitch-player-points {
+  margin-top: 2px;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+.pitch-player-points.pending {
+  color:
+    rgba(
+      245,
+      245,
+      245,
+      .55
+    );
+
+  font-size: 9px;
+  font-weight: 700;
+  font-style: italic;
+}
+
+
+.bench-strip .pitch-player-points.pending {
+  color: var(--muted);
+}
+
+
+.pitch-player-ownership {
+  margin-top: 2px;
+
+  color:
+    rgba(
+      245,
+      245,
+      245,
+      .65
+    );
+
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+
+.bench-strip .pitch-player-ownership {
+  color: var(--muted);
+}

@@ -1197,6 +1197,218 @@ function squadFor(entryId) {
 }
 
 
+/* =====================================================
+   LEAGUE OWNERSHIP (how many of THIS league's managers
+   own/captain each player) - derived entirely from the
+   squads already fetched for the current Gameweek, so
+   no extra API call is needed.
+===================================================== */
+
+function computeLeagueOwnership() {
+
+  const ownership =
+    new Map();
+
+
+  if (
+    !squadsData ||
+    !Array.isArray(
+      squadsData.squads
+    )
+  ) {
+    return ownership;
+  }
+
+
+  for (const squad of squadsData.squads) {
+
+    if (squad.error) {
+      continue;
+    }
+
+
+    const picks =
+      [
+        ...(squad.startingXI || []),
+        ...(squad.bench || [])
+      ];
+
+
+    for (const player of picks) {
+
+      if (!ownership.has(player.id)) {
+
+        ownership.set(
+          player.id,
+          {
+            id: player.id,
+            name: player.name,
+            team: player.team,
+            ownerCount: 0,
+            captainCount: 0
+          }
+        );
+
+      }
+
+
+      const entry =
+        ownership.get(player.id);
+
+
+      entry.ownerCount += 1;
+
+
+      if (player.isCaptain) {
+        entry.captainCount += 1;
+      }
+
+    }
+
+  }
+
+
+  return ownership;
+
+}
+
+
+function leagueOwnershipSummary() {
+
+  const ownership =
+    computeLeagueOwnership();
+
+
+  if (!ownership.size) {
+    return null;
+  }
+
+
+  const entries =
+    [...ownership.values()];
+
+
+  const totalManagers =
+    squadsData.squads.filter(
+      squad => !squad.error
+    ).length;
+
+
+  const mostOwned =
+    entries.reduce(
+      (best, entry) =>
+        entry.ownerCount >
+        (best?.ownerCount || 0)
+          ? entry
+          : best,
+      null
+    );
+
+
+  const mostCaptained =
+    entries.reduce(
+      (best, entry) =>
+        entry.captainCount >
+        (best?.captainCount || 0)
+          ? entry
+          : best,
+      null
+    );
+
+
+  return {
+    ownership,
+    totalManagers,
+    mostOwned,
+    mostCaptained
+  };
+
+}
+
+
+function buildLeaguePicksCardHtml() {
+
+  const summary =
+    leagueOwnershipSummary();
+
+
+  if (
+    !summary ||
+    (
+      !summary.mostOwned &&
+      !(summary.mostCaptained?.captainCount > 0)
+    )
+  ) {
+    return '';
+  }
+
+
+  const {
+    totalManagers,
+    mostOwned,
+    mostCaptained
+  } =
+    summary;
+
+
+  return `
+    <div class="league-picks-card">
+
+      <p class="league-picks-title">
+        👥 League Picks &middot; GW${getCurrentGw()}
+      </p>
+
+      <div class="league-picks-row">
+
+        ${
+          mostOwned
+            ? `
+              <div class="league-picks-stat">
+                <strong>${escapeHtml(mostOwned.name)}</strong>
+                <small>
+                  ${mostOwned.ownerCount}/${totalManagers} managers own
+                </small>
+              </div>
+            `
+            : ''
+        }
+
+        ${
+          mostCaptained &&
+          mostCaptained.captainCount > 0
+            ? `
+              <div class="league-picks-stat">
+                <strong>${escapeHtml(mostCaptained.name)}</strong>
+                <small>
+                  Captained by ${mostCaptained.captainCount}
+                  ${mostCaptained.captainCount === 1 ? 'manager' : 'managers'}
+                </small>
+              </div>
+            `
+            : ''
+        }
+
+      </div>
+
+    </div>
+  `;
+
+}
+
+
+function renderLeaguePicksCard() {
+
+  if (!$('leaguePicksCard')) {
+    return;
+  }
+
+
+  $('leaguePicksCard').innerHTML =
+    buildLeaguePicksCardHtml();
+
+}
+
+
 async function loadSquadsData() {
 
   if (
@@ -1774,6 +1986,16 @@ function renderSelectedSquad() {
       : squad.predictedTotal;
 
 
+  const ownership =
+    computeLeagueOwnership();
+
+
+  const totalManagers =
+    squadsData.squads.filter(
+      s => !s.error
+    ).length;
+
+
   $('squadDetail').innerHTML = `
 
     <div class="award-card squad-summary-card" style="margin-bottom:18px;">
@@ -1799,16 +2021,26 @@ function renderSelectedSquad() {
     </div>
 
 
-    <div class="section-heading">
-      <h3>Starting XI</h3>
-    </div>
-
-    <div class="standings-list" style="margin-bottom:22px;">
+    <div class="pitch">
       ${
-        squad.startingXI
+        pitchRows(squad.startingXI)
           .map(
-            player =>
-              squadPlayerRow(player)
+            row => `
+              <div class="pitch-row">
+                ${
+                  row
+                    .map(
+                      player =>
+                        pitchPlayerCard(
+                          player,
+                          ownership,
+                          totalManagers
+                        )
+                    )
+                    .join('')
+                }
+              </div>
+            `
           )
           .join('')
       }
@@ -1819,12 +2051,16 @@ function renderSelectedSquad() {
       <h3>Bench</h3>
     </div>
 
-    <div class="standings-list">
+    <div class="bench-strip">
       ${
         squad.bench
           .map(
             player =>
-              squadPlayerRow(player)
+              pitchPlayerCard(
+                player,
+                ownership,
+                totalManagers
+              )
           )
           .join('')
       }
@@ -1835,68 +2071,97 @@ function renderSelectedSquad() {
 }
 
 
-function squadPlayerRow(player) {
+/*
+  Groups the Starting XI into pitch rows, ordered FWD
+  at the top of the screen down to GKP at the bottom -
+  mirrors FPL's own "attacking upward" pitch view.
+*/
 
-  const badge =
+function pitchRows(startingXI) {
+
+  const order =
+    ['FWD', 'MID', 'DEF', 'GKP'];
+
+
+  return order
+    .map(
+      position =>
+        startingXI.filter(
+          player =>
+            player.position === position
+        )
+    )
+    .filter(
+      row => row.length
+    );
+
+}
+
+
+function pitchPlayerCard(
+  player,
+  ownership,
+  totalManagers
+) {
+
+  const armband =
     player.isCaptain
-      ? ' (C)'
+      ? 'C'
       : player.isViceCaptain
-        ? ' (V)'
-        : '';
+        ? 'V'
+        : null;
 
 
   const isUpcoming =
     (player.status || 'upcoming') === 'upcoming';
 
 
-  const pointsLabel =
-    player.status === 'final'
-      ? 'FINAL'
-      : player.status === 'live'
-        ? 'LIVE'
-        : '';
+  const owned =
+    ownership.get(
+      player.id
+    );
+
+
+  const ownershipText =
+    owned && totalManagers
+      ? `👥 ${owned.ownerCount}/${totalManagers}`
+      : '';
 
 
   return `
-    <div class="standing-row">
+    <div class="pitch-player">
 
-      <div class="position">
-        ${escapeHtml(player.position)}
-      </div>
+      <div class="pitch-shirt-wrap">
 
+        <span class="pitch-shirt">👕</span>
 
-      <div class="manager-info">
+        ${
+          armband
+            ? `<span class="pitch-armband">${armband}</span>`
+            : ''
+        }
 
-        <strong>
-          ${statusDot(player.status)}${escapeHtml(player.name)}${badge}
-        </strong>
-
-        <small>
-          ${escapeHtml(player.team)}
-        </small>
+        ${statusDot(player.status)}
 
       </div>
 
+      <div class="pitch-player-name">
+        ${escapeHtml(player.name)}
+      </div>
 
-      <div class="points">
+      <div class="pitch-player-points ${isUpcoming ? 'pending' : ''}">
         ${
           isUpcoming
-            ? `
-              <small class="points-pending">
-                Not played yet
-              </small>
-            `
-            : `
-              <strong>
-                ${Math.round(player.livePoints || 0)}
-              </strong>
-
-              <small>
-                ${pointsLabel}
-              </small>
-            `
+            ? 'Not played yet'
+            : Math.round(player.livePoints || 0)
         }
       </div>
+
+      ${
+        ownershipText
+          ? `<div class="pitch-player-ownership">${ownershipText}</div>`
+          : ''
+      }
 
     </div>
   `;
@@ -2241,6 +2506,26 @@ function renderGameweekAward() {
     data.gameweek
       ?.id ||
     selectedGw;
+
+
+  /*
+    League ownership/captaincy stats only exist for the
+    CURRENT Gameweek (squadsData never holds a past GW's
+    picks) - show the card only while viewing that GW,
+    and clear it otherwise so a stale current-GW stat
+    doesn't linger while browsing history.
+  */
+
+  if (gw === getCurrentGw()) {
+
+    renderLeaguePicksCard();
+
+  } else if ($('leaguePicksCard')) {
+
+    $('leaguePicksCard').innerHTML =
+      '';
+
+  }
 
 
   /*
