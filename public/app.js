@@ -423,6 +423,14 @@ function standingsRow(
       : null;
 
 
+  const playProgress =
+    weekly &&
+    getCurrentGw() ===
+      (gwViewData?.gameweek?.id || 0)
+      ? squadPlayProgress(manager.entryId)
+      : null;
+
+
   return `
     <div
       class="standing-row ${weekly ? 'standing-row-clickable' : ''}"
@@ -447,6 +455,11 @@ function standingsRow(
 
         <small>
           ${escapeHtml(manager.team)}
+          ${
+            playProgress
+              ? `<span class="play-progress">&middot; ${playProgress.played} played, ${playProgress.remaining} left</span>`
+              : ''
+          }
         </small>
 
       </div>
@@ -1232,6 +1245,58 @@ function squadFor(entryId) {
     ) ||
     null
   );
+
+}
+
+
+/*
+  How many of a manager's players have already kicked
+  off (or finished) this Gameweek vs are still to play.
+  Normally only the Starting XI counts toward the team
+  total, but with Bench Boost active all 15 players count,
+  so the "remaining" figure needs to include the bench too.
+*/
+
+function squadPlayProgress(entryId) {
+
+  const squad =
+    squadFor(entryId);
+
+  if (
+    !squad ||
+    squad.error
+  ) {
+    return null;
+  }
+
+
+  const isBenchBoost =
+    squad.activeChip === 'bboost';
+
+  const players =
+    isBenchBoost
+      ? [
+          ...(squad.startingXI || []),
+          ...(squad.bench || [])
+        ]
+      : (squad.startingXI || []);
+
+  if (!players.length) {
+    return null;
+  }
+
+
+  const played =
+    players.filter(
+      player =>
+        (player.status || 'upcoming') !== 'upcoming'
+    ).length;
+
+  return {
+    played,
+    remaining: players.length - played,
+    total: players.length
+  };
 
 }
 
