@@ -2289,15 +2289,14 @@ function renderSelectedSquad() {
 
 
 /*
-  Groups the Starting XI into pitch rows, ordered FWD
-  at the top of the screen down to GKP at the bottom -
-  mirrors FPL's own "attacking upward" pitch view.
+  Groups the Starting XI into pitch rows, ordered GKP
+  at the top of the screen down to FWD at the bottom.
 */
 
 function pitchRows(startingXI) {
 
   const order =
-    ['FWD', 'MID', 'DEF', 'GKP'];
+    ['GKP', 'DEF', 'MID', 'FWD'];
 
 
   return order
@@ -2345,6 +2344,34 @@ function pitchPlayerCard(
       : '';
 
 
+  /*
+    player.multiplier already reflects the captaincy/chip
+    math FPL applies (1 for a normal starter, 2 for the
+    captain, 3 if Triple Captain is active, 0 for a bench
+    spot with no Bench Boost, 1 for a bench spot WITH Bench
+    Boost) - so the points shown here should be the raw
+    live points times that multiplier, EXCEPT a benched
+    player with a 0 multiplier still shows their raw score
+    (informational - it just isn't counting toward the
+    team total).
+  */
+
+  const multiplier =
+    Number(player.multiplier || 0);
+
+  const displayPoints =
+    player.onBench && multiplier === 0
+      ? Math.round(player.livePoints || 0)
+      : Math.round(
+          (player.livePoints || 0) * (multiplier || 1)
+        );
+
+  const multiplierTag =
+    !isUpcoming && multiplier > 1
+      ? `<span class="pitch-player-multiplier">×${multiplier}</span>`
+      : '';
+
+
   return `
     <div
       class="pitch-player"
@@ -2373,7 +2400,7 @@ function pitchPlayerCard(
         ${
           isUpcoming
             ? 'Not played yet'
-            : Math.round(player.livePoints || 0)
+            : `${displayPoints}${multiplierTag}`
         }
       </div>
 

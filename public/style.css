@@ -3064,6 +3064,16 @@ p {
 }
 
 
+.pitch-player-multiplier {
+  margin-left: 2px;
+
+  color: var(--gold);
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
 .pitch-player-points.pending {
   color:
     rgba(
