@@ -124,6 +124,16 @@
         Analytics
       </button>
 
+
+      <button
+        class="nav-button"
+        data-tab="fixtures"
+        type="button"
+      >
+        <span>🏟️</span>
+        Fixtures
+      </button>
+
     </nav>
 
 
@@ -332,15 +342,28 @@
       hidden
     >
 
-      <div class="section-heading">
+      <div class="section-heading section-heading-row">
 
-        <h2>
-          Squads
-        </h2>
+        <div>
 
-        <p id="squadsSubtitle">
-          Captain, vice-captain and chips for this Gameweek.
-        </p>
+          <h2>
+            Squads
+          </h2>
+
+          <p id="squadsSubtitle">
+            Captain, vice-captain and chips for this Gameweek.
+          </p>
+
+        </div>
+
+
+        <button
+          id="compareToggle"
+          class="chip-toggle-button"
+          type="button"
+        >
+          ⚖️ Compare
+        </button>
 
       </div>
 
@@ -349,6 +372,24 @@
         id="squadManagerPicker"
         class="squad-manager-picker"
       ></div>
+
+
+      <div
+        id="comparePickerWrap"
+        class="compare-picker-wrap"
+        hidden
+      >
+
+        <p class="compare-picker-label">
+          Compare with
+        </p>
+
+        <div
+          id="comparePicker"
+          class="squad-manager-picker"
+        ></div>
+
+      </div>
 
 
       <div
@@ -391,6 +432,40 @@
 
         <div class="empty">
           Loading analytics…
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         FIXTURES
+    =================================================== -->
+
+    <section
+      id="fixtures"
+      class="panel"
+      hidden
+    >
+
+      <div class="section-heading">
+
+        <h2>
+          🏟️ Fixtures &amp; Results
+        </h2>
+
+        <p id="fixturesSubtitle">
+          This Gameweek's Premier League matches.
+        </p>
+
+      </div>
+
+
+      <div id="fixturesBody">
+
+        <div class="empty">
+          Loading fixtures…
         </div>
 
       </div>
@@ -541,7 +616,7 @@
   </div>
 
 
-  <script src="/app.js?v=44"></script>
+  <script src="/app.js?v=45"></script>
 
 </body>
 

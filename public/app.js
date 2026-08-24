@@ -15,7 +15,8 @@ const VALID_TABS = [
   'payments',
   'predictions',
   'squads',
-  'analytics'
+  'analytics',
+  'fixtures'
 ];
 
 
@@ -82,6 +83,34 @@ let squadsLoading =
 
 let selectedSquadEntry =
   null;
+
+
+/*
+  Squads tab "Compare" mode - lets a manager see their
+  squad head-to-head against another manager's for the
+  current Gameweek (who's still to play, and what each
+  side realistically needs from their remaining players).
+*/
+
+let compareMode =
+  false;
+
+
+let compareEntry =
+  null;
+
+
+/*
+  Real-world fixtures/results for the current Gameweek -
+  independent of any manager's squad.
+*/
+
+let fixturesData =
+  null;
+
+
+let fixturesLoading =
+  false;
 
 
 /* =====================================================
@@ -414,21 +443,32 @@ function standingsRow(
         : '—';
 
 
-  const chip =
+  const isCurrentGwWeekly =
     weekly &&
     getCurrentGw() ===
-      (gwViewData?.gameweek?.id || 0)
+      (gwViewData?.gameweek?.id || 0);
+
+
+  const weeklySquad =
+    isCurrentGwWeekly
       ? squadFor(manager.entryId)
-          ?.activeChipLabel
       : null;
+
+
+  const chip =
+    weeklySquad?.activeChipLabel ||
+    null;
 
 
   const playProgress =
-    weekly &&
-    getCurrentGw() ===
-      (gwViewData?.gameweek?.id || 0)
+    isCurrentGwWeekly
       ? squadPlayProgress(manager.entryId)
       : null;
+
+
+  const captainName =
+    weeklySquad?.captain?.name ||
+    null;
 
 
   return `
@@ -455,12 +495,31 @@ function standingsRow(
 
         <small>
           ${escapeHtml(manager.team)}
-          ${
-            playProgress
-              ? `<span class="play-progress">&middot; ${playProgress.played} played, ${playProgress.remaining} left</span>`
-              : ''
-          }
         </small>
+
+        ${
+          captainName || playProgress
+            ? `
+              <small class="standing-meta">
+                ${
+                  captainName
+                    ? `🧢 ${escapeHtml(captainName)}`
+                    : ''
+                }
+                ${
+                  captainName && playProgress
+                    ? ' &middot; '
+                    : ''
+                }
+                ${
+                  playProgress
+                    ? playProgressText(playProgress)
+                    : ''
+                }
+              </small>
+            `
+            : ''
+        }
 
       </div>
 
@@ -1250,11 +1309,12 @@ function squadFor(entryId) {
 
 
 /*
-  How many of a manager's players have already kicked
-  off (or finished) this Gameweek vs are still to play.
-  Normally only the Starting XI counts toward the team
-  total, but with Bench Boost active all 15 players count,
-  so the "remaining" figure needs to include the bench too.
+  How many of a manager's players have finished, are
+  currently mid-match ("in play"), or haven't kicked off
+  yet this Gameweek. Normally only the Starting XI counts
+  toward the team total, but with Bench Boost active all
+  15 players count, so the breakdown needs to include the
+  bench too.
 */
 
 function squadPlayProgress(entryId) {
@@ -1286,17 +1346,61 @@ function squadPlayProgress(entryId) {
   }
 
 
-  const played =
+  const finished =
     players.filter(
-      player =>
-        (player.status || 'upcoming') !== 'upcoming'
+      player => player.status === 'final'
     ).length;
 
+  const live =
+    players.filter(
+      player => player.status === 'live'
+    ).length;
+
+  const upcoming =
+    players.length - finished - live;
+
   return {
-    played,
-    remaining: players.length - played,
+    finished,
+    live,
+    upcoming,
     total: players.length
   };
+
+}
+
+
+/*
+  Turns a squadPlayProgress() result into a short, plain-
+  language label - omitting any segment that's currently
+  zero so it stays readable ("11 to go" pre-kickoff rather
+  than "0 played · 0 live · 11 to go").
+*/
+
+function playProgressText(progress) {
+
+  if (!progress) {
+    return '';
+  }
+
+
+  const parts = [];
+
+  if (progress.finished) {
+    parts.push(`${progress.finished} played`);
+  }
+
+  if (progress.live) {
+    parts.push(`${progress.live} live`);
+  }
+
+  if (progress.upcoming) {
+    parts.push(`${progress.upcoming} to go`);
+  }
+
+  return (
+    parts.join(' &middot; ') ||
+    `${progress.total} played`
+  );
 
 }
 
@@ -1728,7 +1832,16 @@ async function loadSquadsData() {
     }
 
 
-    renderGameweekAward();
+    /*
+      renderGameweekView() re-renders the whole GW tab -
+      standings (captain + played/live/to-go now depend on
+      squadsData) as well as the award card - not just
+      renderGameweekAward() alone, otherwise the standings
+      list keeps showing stale (missing) captain/play-
+      progress info until the user leaves and re-enters the
+      GW tab after squads finish loading.
+    */
+    renderGameweekView();
 
     renderPredictions();
 
@@ -1772,6 +1885,239 @@ async function loadSquadsData() {
       false;
 
   }
+
+}
+
+
+/* =====================================================
+   FIXTURES TAB (real-world matches, not squad-specific)
+===================================================== */
+
+async function loadFixturesData() {
+
+  if (
+    !dashboardData ||
+    fixturesLoading
+  ) {
+    return;
+  }
+
+
+  fixturesLoading =
+    true;
+
+
+  try {
+
+    const gw =
+      getCurrentGw();
+
+
+    const response =
+      await fetch(
+        `/api/fixtures?gw=${gw}&_=${Date.now()}`,
+        {
+          cache:
+            'no-store'
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        'Unable to load fixtures'
+      );
+
+    }
+
+
+    fixturesData =
+      data;
+
+
+    renderFixtures();
+
+
+  } catch (error) {
+
+    console.error(
+      'Fixtures load failed:',
+      error
+    );
+
+
+    if (
+      $('fixturesBody') &&
+      !fixturesData
+    ) {
+
+      $('fixturesBody').innerHTML = `
+        <div class="empty">
+          ${escapeHtml(error.message)}
+        </div>
+      `;
+
+    }
+
+  } finally {
+
+    fixturesLoading =
+      false;
+
+  }
+
+}
+
+
+function anyFixtureStillLive() {
+
+  return !!(
+    fixturesData &&
+    Array.isArray(fixturesData.fixtures) &&
+    fixturesData.fixtures.some(
+      fixture => fixture.status === 'live'
+    )
+  );
+
+}
+
+
+function fixtureRow(fixture) {
+
+  const kickoff =
+    fixture.kickoff
+      ? new Date(fixture.kickoff)
+      : null;
+
+
+  const kickoffLabel =
+    kickoff
+      ? kickoff.toLocaleString(
+          undefined,
+          {
+            weekday: 'short',
+            hour: 'numeric',
+            minute: '2-digit'
+          }
+        )
+      : 'TBC';
+
+
+  const statusBadge =
+    fixture.status === 'live'
+      ? '<span class="fixture-status live">LIVE</span>'
+      : fixture.status === 'final'
+        ? '<span class="fixture-status final">FT</span>'
+        : `<span class="fixture-status upcoming">${escapeHtml(kickoffLabel)}</span>`;
+
+
+  const showScore =
+    fixture.status !== 'upcoming';
+
+
+  return `
+    <div class="fixture-row">
+
+      <div class="fixture-team fixture-team-home">
+        ${escapeHtml(fixture.homeTeam)}
+      </div>
+
+      <div class="fixture-score">
+        ${
+          showScore
+            ? `${fixture.homeScore} - ${fixture.awayScore}`
+            : 'vs'
+        }
+      </div>
+
+      <div class="fixture-team fixture-team-away">
+        ${escapeHtml(fixture.awayTeam)}
+      </div>
+
+      ${statusBadge}
+
+    </div>
+  `;
+
+}
+
+
+function renderFixtures() {
+
+  if (!$('fixturesBody')) {
+    return;
+  }
+
+
+  if ($('fixturesSubtitle')) {
+
+    $('fixturesSubtitle').textContent =
+      `Gameweek ${getCurrentGw()} Premier League matches.`;
+
+  }
+
+
+  if (
+    fixturesLoading &&
+    !fixturesData
+  ) {
+
+    $('fixturesBody').innerHTML = `
+      <div class="empty">
+        Loading fixtures…
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (!fixturesData) {
+
+    if (
+      !fixturesLoading &&
+      dashboardData
+    ) {
+
+      loadFixturesData();
+
+    }
+
+    return;
+
+  }
+
+
+  const fixtures =
+    Array.isArray(fixturesData.fixtures)
+      ? fixturesData.fixtures
+      : [];
+
+
+  if (!fixtures.length) {
+
+    $('fixturesBody').innerHTML = `
+      <div class="empty">
+        No fixtures found for this Gameweek.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  $('fixturesBody').innerHTML =
+    fixtures
+      .map(fixtureRow)
+      .join('');
 
 }
 
@@ -2000,7 +2346,7 @@ function predictionRow(row) {
           ${chip}
         </strong>
 
-        <small>
+        <small class="standing-meta">
           ${predictionReasonText(squad)}
         </small>
 
@@ -2134,7 +2480,133 @@ function renderSquadsTab() {
       .join('');
 
 
-  renderSelectedSquad();
+  if ($('compareToggle')) {
+
+    $('compareToggle').classList.toggle(
+      'active',
+      compareMode
+    );
+
+    $('compareToggle').textContent =
+      compareMode
+        ? '✕ Exit Compare'
+        : '⚖️ Compare';
+
+  }
+
+
+  if ($('comparePickerWrap')) {
+
+    $('comparePickerWrap').hidden =
+      !compareMode;
+
+  }
+
+
+  if (
+    compareMode &&
+    $('comparePicker')
+  ) {
+
+    if (
+      compareEntry == null ||
+      Number(compareEntry) ===
+        Number(selectedSquadEntry)
+    ) {
+
+      compareEntry =
+        defaultCompareEntry(
+          selectedSquadEntry
+        );
+
+    }
+
+
+    $('comparePicker').innerHTML =
+      managers
+        .filter(
+          manager =>
+            Number(manager.entryId) !==
+            Number(selectedSquadEntry)
+        )
+        .map(
+          manager => `
+            <button
+              type="button"
+              class="squad-chip ${Number(compareEntry) === Number(manager.entryId) ? 'active' : ''}"
+              data-compare-entry="${manager.entryId}"
+            >
+              ${escapeHtml(manager.manager)}
+            </button>
+          `
+        )
+        .join('');
+
+  }
+
+
+  if (compareMode) {
+
+    renderSquadComparison();
+
+  } else {
+
+    renderSelectedSquad();
+
+  }
+
+}
+
+
+/*
+  Defaults the comparison opponent to whoever is ranked
+  just above the selected manager in this Gameweek's
+  standings (the natural "who do I need to catch?"), or
+  just below if the selected manager is already top of
+  the table.
+*/
+
+function defaultCompareEntry(entryId) {
+
+  const weekly =
+    Array.isArray(
+      dashboardData?.weekly
+    )
+      ? dashboardData.weekly
+      : [];
+
+  if (weekly.length < 2) {
+    return null;
+  }
+
+
+  const index =
+    weekly.findIndex(
+      manager =>
+        Number(manager.entryId) ===
+        Number(entryId)
+    );
+
+  if (index === -1) {
+
+    return (
+      weekly.find(
+        manager =>
+          Number(manager.entryId) !==
+          Number(entryId)
+      )?.entryId ??
+      null
+    );
+
+  }
+
+
+  const neighbor =
+    index > 0
+      ? weekly[index - 1]
+      : weekly[index + 1];
+
+  return neighbor?.entryId ?? null;
 
 }
 
@@ -2282,6 +2754,358 @@ function renderSelectedSquad() {
           .join('')
       }
     </div>
+
+  `;
+
+}
+
+
+/* =====================================================
+   SQUAD COMPARISON ("Compare" mode on the Squads tab)
+
+   Head-to-head for the current Gameweek only (squadsData
+   never holds a past GW's picks): each side's points
+   already locked in vs what's realistically still up for
+   grabs from players who haven't finished yet, using the
+   same blended predictedContribution the rest of the app
+   already relies on (actual points once a player's match
+   has started, FPL's own projection until then).
+===================================================== */
+
+/*
+  Splits a squad's counting players (Starting XI, plus the
+  bench too if Bench Boost is active) into what's already
+  locked in (live or finished) vs what's still to play.
+*/
+
+function squadCompareBreakdown(squad) {
+
+  const counting =
+    [
+      ...(squad.startingXI || []),
+      ...(
+        squad.activeChip === 'bboost'
+          ? (squad.bench || [])
+          : []
+      )
+    ].filter(
+      player => player.multiplier > 0
+    );
+
+  const toPlay =
+    counting.filter(
+      player => player.status === 'upcoming'
+    );
+
+  const locked =
+    counting.filter(
+      player => player.status !== 'upcoming'
+    );
+
+  const lockedPoints =
+    locked.reduce(
+      (sum, player) =>
+        sum + (player.predictedContribution || 0),
+      0
+    );
+
+  const projectedRemaining =
+    toPlay.reduce(
+      (sum, player) =>
+        sum + (player.predictedContribution || 0),
+      0
+    );
+
+  return {
+    counting,
+    locked,
+    toPlay,
+    lockedPoints,
+    projectedRemaining,
+    total: squad.predictedTotal
+  };
+
+}
+
+
+function weeklyRankFor(entryId) {
+
+  const weekly =
+    Array.isArray(
+      dashboardData?.weekly
+    )
+      ? dashboardData.weekly
+      : [];
+
+  const index =
+    weekly.findIndex(
+      manager =>
+        Number(manager.entryId) ===
+        Number(entryId)
+    );
+
+  return index === -1 ? null : index + 1;
+
+}
+
+
+function ordinal(n) {
+
+  if (!Number.isInteger(n)) {
+    return '';
+  }
+
+
+  const remainder100 =
+    n % 100;
+
+  if (remainder100 >= 11 && remainder100 <= 13) {
+    return `${n}th`;
+  }
+
+
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+
+}
+
+
+/*
+  One compact line per still-to-play player: projected
+  points plus a "realistic" read on them - recent form,
+  season goals/assists, and an injury-doubt flag when FPL
+  itself is uncertain they'll even feature.
+*/
+
+function comparePlayerRow(player) {
+
+  const doubt =
+    player.chanceOfPlaying != null &&
+    player.chanceOfPlaying < 75
+      ? `<span class="compare-doubt">⚠ ${player.chanceOfPlaying}% chance</span>`
+      : '';
+
+  return `
+    <div class="compare-player-row">
+
+      <div class="compare-player-name">
+        ${statusDot(player.status)}
+        ${escapeHtml(player.name)}
+        ${player.isCaptain ? '<span class="pitch-armband-inline">C</span>' : ''}
+        <small>${escapeHtml(player.team)} &middot; ${escapeHtml(player.position)}</small>
+      </div>
+
+      <div class="compare-player-stats">
+        <strong>${player.predictedContribution.toFixed(1)} proj</strong>
+        <small>
+          Form ${player.form.toFixed(1)} &middot;
+          ${player.goals}G ${player.assists}A
+        </small>
+        ${doubt}
+      </div>
+
+    </div>
+  `;
+
+}
+
+
+function compareSideSummary(label, manager, squad, breakdown) {
+
+  const rank =
+    weeklyRankFor(manager.entryId);
+
+  return `
+    <div class="compare-side-summary">
+
+      <p class="compare-side-label">
+        ${label}
+        ${
+          rank
+            ? `<span class="compare-side-rank">${ordinal(rank)}</span>`
+            : ''
+        }
+      </p>
+
+      <strong class="compare-side-name">
+        ${escapeHtml(manager.manager)}
+      </strong>
+
+      <small>${escapeHtml(manager.team)}</small>
+
+      <div class="compare-side-points">
+        <strong>${breakdown.total.toFixed(1)}</strong>
+        <small>projected total</small>
+      </div>
+
+      <p class="compare-side-detail">
+        ${breakdown.lockedPoints.toFixed(1)} pts locked in
+        &middot;
+        ${
+          breakdown.toPlay.length
+            ? `${breakdown.projectedRemaining.toFixed(1)} pts projected from ${breakdown.toPlay.length} to play`
+            : 'nobody left to play'
+        }
+      </p>
+
+    </div>
+  `;
+
+}
+
+
+function renderSquadComparison() {
+
+  if (!$('squadDetail')) {
+    return;
+  }
+
+
+  const managers =
+    dashboardData?.managers ||
+    [];
+
+
+  const myManager =
+    managers.find(
+      item =>
+        Number(item.entryId) ===
+        Number(selectedSquadEntry)
+    );
+
+  const theirManager =
+    managers.find(
+      item =>
+        Number(item.entryId) ===
+        Number(compareEntry)
+    );
+
+  const mySquad =
+    squadFor(selectedSquadEntry);
+
+  const theirSquad =
+    compareEntry
+      ? squadFor(compareEntry)
+      : null;
+
+
+  if (
+    !myManager ||
+    !mySquad ||
+    mySquad.error
+  ) {
+
+    $('squadDetail').innerHTML = `
+      <div class="empty">
+        Select a manager above.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    !theirManager ||
+    !theirSquad ||
+    theirSquad.error
+  ) {
+
+    $('squadDetail').innerHTML = `
+      <div class="empty">
+        Pick someone to compare with above.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  const mine =
+    squadCompareBreakdown(mySquad);
+
+  const theirs =
+    squadCompareBreakdown(theirSquad);
+
+
+  const gap =
+    theirs.total - mine.total;
+
+  const bothStillHaveUpside =
+    mine.toPlay.length > 0 ||
+    theirs.toPlay.length > 0;
+
+
+  let verdict;
+
+  if (Math.abs(gap) < 0.05) {
+
+    verdict =
+      "You're projected to finish level.";
+
+  } else if (gap < 0) {
+
+    verdict =
+      `You're projected to finish ${Math.abs(gap).toFixed(1)} pts ahead of ${escapeHtml(theirManager.manager)}.`;
+
+  } else if (!bothStillHaveUpside) {
+
+    verdict =
+      `${escapeHtml(theirManager.manager)} finishes ${gap.toFixed(1)} pts ahead - nobody's left to play.`;
+
+  } else {
+
+    verdict =
+      `You need your remaining players to outscore ${escapeHtml(theirManager.manager)}'s by ${gap.toFixed(1)}+ combined to catch up.`;
+
+  }
+
+
+  $('squadDetail').innerHTML = `
+
+    <div class="compare-verdict-card">
+      <span class="compare-verdict-icon">
+        ${gap <= 0 ? '📈' : '⚔️'}
+      </span>
+      <p>${verdict}</p>
+    </div>
+
+    <div class="compare-sides">
+      ${compareSideSummary('YOU', myManager, mySquad, mine)}
+      ${compareSideSummary('THEM', theirManager, theirSquad, theirs)}
+    </div>
+
+    ${
+      mine.toPlay.length
+        ? `
+          <div class="section-heading">
+            <h3>Your remaining players</h3>
+          </div>
+          <div class="compare-player-list">
+            ${mine.toPlay.map(comparePlayerRow).join('')}
+          </div>
+        `
+        : ''
+    }
+
+    ${
+      theirs.toPlay.length
+        ? `
+          <div class="section-heading">
+            <h3>${escapeHtml(theirManager.manager)}'s remaining players</h3>
+          </div>
+          <div class="compare-player-list">
+            ${theirs.toPlay.map(comparePlayerRow).join('')}
+          </div>
+        `
+        : ''
+    }
 
   `;
 
@@ -5151,6 +5975,19 @@ async function openTab(
 
 
   /*
+    FIXTURES
+  */
+
+  if (
+    tab === 'fixtures'
+  ) {
+
+    renderFixtures();
+
+  }
+
+
+  /*
     URL
   */
 
@@ -5450,6 +6287,60 @@ if ($('squadManagerPicker')) {
         selectedSquadEntry =
           Number(
             button.dataset.entry
+          );
+
+
+        renderSquadsTab();
+
+      }
+    );
+
+}
+
+
+/* =====================================================
+   SQUAD COMPARE TOGGLE + OPPONENT PICKER
+===================================================== */
+
+if ($('compareToggle')) {
+
+  $('compareToggle')
+    .addEventListener(
+      'click',
+      () => {
+
+        compareMode =
+          !compareMode;
+
+        renderSquadsTab();
+
+      }
+    );
+
+}
+
+
+if ($('comparePicker')) {
+
+  $('comparePicker')
+    .addEventListener(
+      'click',
+      event => {
+
+        const button =
+          event.target.closest(
+            '[data-compare-entry]'
+          );
+
+
+        if (!button) {
+          return;
+        }
+
+
+        compareEntry =
+          Number(
+            button.dataset.compareEntry
           );
 
 
@@ -5831,6 +6722,22 @@ setInterval(
     ) {
 
       loadSquadsData();
+
+    }
+
+
+    if (
+      document.visibilityState ===
+        'visible' &&
+      dashboardData &&
+      !fixturesLoading &&
+      (
+        !fixturesData ||
+        anyFixtureStillLive()
+      )
+    ) {
+
+      loadFixturesData();
 
     }
 

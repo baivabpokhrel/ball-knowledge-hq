@@ -205,10 +205,7 @@ p {
 
   z-index: 100;
 
-  display: grid;
-
-  grid-template-columns:
-    repeat(5, 1fr);
+  display: flex;
 
   gap: 4px;
 
@@ -235,13 +232,38 @@ p {
 
   -webkit-backdrop-filter:
     blur(18px);
+
+  /*
+    More tabs than comfortably fit a narrow phone screen
+    scroll horizontally instead of squeezing every button
+    down - snapping keeps it feeling like distinct tabs
+    rather than a loose scroll area.
+  */
+  overflow-x: auto;
+
+  scroll-snap-type: x proximity;
+
+  -webkit-overflow-scrolling: touch;
+
+  scrollbar-width: none;
+}
+
+
+.main-nav::-webkit-scrollbar {
+  display: none;
 }
 
 
 .nav-button {
   min-height: 51px;
 
-  padding: 0 2px;
+  flex: 1 0 auto;
+
+  min-width: 62px;
+
+  scroll-snap-align: start;
+
+  padding: 0 4px;
 
   border: 0;
 
@@ -551,8 +573,17 @@ p {
 }
 
 
-.play-progress {
-  margin-left: 4px;
+.manager-info small.standing-meta {
+  display: block;
+
+  margin-top: 3px;
+
+  overflow: visible;
+
+  white-space: normal;
+  text-overflow: unset;
+
+  line-height: 1.4;
 
   color:
     rgba(
@@ -2230,6 +2261,442 @@ p {
   background: var(--gold-soft);
 
   color: var(--gold);
+}
+
+
+.section-heading-row {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  flex-wrap: wrap;
+}
+
+
+.section-heading-row .section-heading {
+  margin-bottom: 0;
+}
+
+
+.chip-toggle-button {
+  flex-shrink: 0;
+
+  min-height: 34px;
+
+  padding: 0 12px;
+
+  border: 1px solid var(--border);
+  border-radius: 999px;
+
+  background: var(--surface);
+
+  color: var(--muted);
+
+  font-size: 10.5px;
+  font-weight: 800;
+
+  white-space: nowrap;
+}
+
+
+.chip-toggle-button.active {
+  border-color: var(--gold);
+
+  background: var(--gold-soft);
+
+  color: var(--gold);
+}
+
+
+.compare-picker-wrap {
+  margin-top: -8px;
+
+  margin-bottom: 18px;
+}
+
+
+.compare-picker-label {
+  margin: 0 0 8px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+
+/*
+  COMPARE MODE (Squads tab)
+*/
+
+.compare-verdict-card {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  margin-bottom: 16px;
+
+  padding: 16px;
+
+  border: 1px solid var(--gold);
+  border-radius: 19px;
+
+  background: var(--gold-soft);
+}
+
+
+.compare-verdict-icon {
+  flex-shrink: 0;
+
+  font-size: 24px;
+}
+
+
+.compare-verdict-card p {
+  margin: 0;
+
+  color: var(--text);
+
+  font-size: 13px;
+  font-weight: 700;
+
+  line-height: 1.4;
+}
+
+
+.compare-sides {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 10px;
+
+  margin-bottom: 18px;
+}
+
+
+.compare-side-summary {
+  padding: 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 16px;
+
+  background: var(--surface);
+}
+
+
+.compare-side-label {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 0 0 4px;
+
+  color: var(--gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: .08em;
+}
+
+
+.compare-side-rank {
+  padding: 1px 6px;
+
+  border-radius: 999px;
+
+  background: rgba(214, 173, 85, .16);
+
+  font-size: 8px;
+}
+
+
+.compare-side-name {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 13px;
+}
+
+
+.compare-side-summary > small {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+
+.compare-side-points {
+  margin: 10px 0 6px;
+}
+
+
+.compare-side-points strong {
+  display: block;
+
+  font-size: 22px;
+}
+
+
+.compare-side-points small {
+  color: var(--muted);
+
+  font-size: 8px;
+  font-weight: 800;
+
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+
+.compare-side-detail {
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+
+.compare-player-list {
+  display: grid;
+
+  gap: 8px;
+
+  margin-bottom: 18px;
+}
+
+
+.compare-player-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 10px 13px;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: var(--surface);
+}
+
+
+.compare-player-name {
+  min-width: 0;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+
+.compare-player-name small {
+  display: block;
+
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+
+.pitch-armband-inline {
+  display: inline-block;
+
+  margin-left: 3px;
+
+  padding: 0 4px;
+
+  border-radius: 5px;
+
+  background: var(--gold);
+
+  color: #1a1400;
+
+  font-size: 8px;
+  font-weight: 900;
+}
+
+
+.compare-player-stats {
+  flex-shrink: 0;
+
+  text-align: right;
+}
+
+
+.compare-player-stats strong {
+  display: block;
+
+  font-size: 13px;
+}
+
+
+.compare-player-stats small {
+  display: block;
+
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 8.5px;
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+.compare-doubt {
+  display: block;
+
+  margin-top: 2px;
+
+  color: var(--red);
+
+  font-size: 8.5px;
+  font-weight: 800;
+}
+
+
+@media (max-width: 420px) {
+
+  .compare-sides {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+
+/* =====================================================
+   FIXTURES
+===================================================== */
+
+.fixture-row {
+  display: grid;
+
+  grid-template-columns: 1fr auto 1fr;
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 8px;
+
+  padding: 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 16px;
+
+  background: var(--surface);
+}
+
+
+.fixture-team {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 13px;
+  font-weight: 800;
+}
+
+
+.fixture-team-home {
+  text-align: right;
+}
+
+
+.fixture-team-away {
+  text-align: left;
+}
+
+
+.fixture-score {
+  padding: 4px 10px;
+
+  border-radius: 8px;
+
+  background: var(--surface-2);
+
+  color: var(--text);
+
+  font-size: 14px;
+  font-weight: 900;
+
+  white-space: nowrap;
+
+  text-align: center;
+}
+
+
+.fixture-status {
+  grid-column: 1 / -1;
+
+  justify-self: center;
+
+  margin-top: 2px;
+
+  padding: 2px 8px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: .05em;
+}
+
+
+.fixture-status.upcoming {
+  background: var(--surface-2);
+
+  color: var(--muted);
+}
+
+
+.fixture-status.live {
+  background: var(--green-soft);
+
+  color: var(--green);
+}
+
+
+.fixture-status.final {
+  background: rgba(146, 153, 163, .15);
+
+  color: var(--muted);
 }
 
 
