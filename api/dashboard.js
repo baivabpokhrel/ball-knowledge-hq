@@ -1,41 +1,4 @@
-const FPL = 'https://fantasy.premierleague.com/api';
-
-/*
-  FPL's API gets hammered (and gets slow/rate-limited) by every
-  fantasy app in existence right around Gameweek deadlines and
-  during live matches. Without a timeout, one slow call can hang
-  until Vercel kills the whole function with an opaque 502 - with
-  one, a slow call fails fast with a message the UI can show.
-*/
-const FPL_TIMEOUT_MS = 8000;
-
-async function getJson(url) {
-  let response;
-
-  try {
-    response = await fetch(url, {
-      headers: {
-        'User-Agent': 'BallKnowledgeHQ/0.5',
-        Accept: 'application/json'
-      },
-      signal: AbortSignal.timeout(FPL_TIMEOUT_MS)
-    });
-
-  } catch (error) {
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-      throw new Error('FPL is responding slowly right now - please try again.');
-    }
-    throw error;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `FPL returned ${response.status}`
-    );
-  }
-
-  return response.json();
-}
+import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
 
 
 function fullManagerName(row) {
@@ -125,9 +88,7 @@ export default async function handler(req, res) {
     */
 
     const bootstrap =
-      await getJson(
-        `${FPL}/bootstrap-static/`
-      );
+      await getBootstrap();
 
 
     /*

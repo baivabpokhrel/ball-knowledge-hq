@@ -1,37 +1,4 @@
-const FPL = 'https://fantasy.premierleague.com/api';
-
-/*
-  Same reasoning as the other API routes: FPL's API gets slow/
-  rate-limited under load, so every outbound call gets a timeout
-  rather than risking Vercel killing the whole function.
-*/
-const FPL_TIMEOUT_MS = 8000;
-
-async function getJson(url) {
-  let response;
-
-  try {
-    response = await fetch(url, {
-      headers: {
-        'User-Agent': 'BallKnowledgeHQ/0.5',
-        Accept: 'application/json'
-      },
-      signal: AbortSignal.timeout(FPL_TIMEOUT_MS)
-    });
-
-  } catch (error) {
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-      throw new Error('FPL is responding slowly right now - please try again.');
-    }
-    throw error;
-  }
-
-  if (!response.ok) {
-    throw new Error(`FPL returned ${response.status}`);
-  }
-
-  return response.json();
-}
+import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
 
 /*
   ===================================================
@@ -74,7 +41,7 @@ export default async function handler(req, res) {
 
   try {
     const [bootstrap, fixtures, live] = await Promise.all([
-      getJson(`${FPL}/bootstrap-static/`),
+      getBootstrap(),
       getJson(`${FPL}/fixtures/?event=${gw}`),
       // Only exists to build lineups - degrade gracefully
       // (no lineups, everything else unaffected) if it fails.
