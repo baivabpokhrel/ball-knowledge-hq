@@ -180,14 +180,36 @@ export default async function handler(req, res) {
                 started ? livePoints : epThis;
 
               /*
-                FPL's own "multiplier" already reflects
-                whatever chip is active - 0 for a normal
-                bench spot, 1 if Bench Boost is on, 2 for
-                a captain, 3 if Triple Captain is on - so
-                we just multiply straight through.
+                FPL's own "multiplier" is SUPPOSED to already
+                reflect whatever chip is active - 0 for a
+                normal bench spot, 1 if Bench Boost is on, 2
+                for a captain, 3 if Triple Captain is on - but
+                it's not worth trusting blindly (managers have
+                reported it lagging active_chip right after a
+                chip is played). Force it to match what the
+                chip actually implies so captain doubling and
+                Bench Boost always show up correctly.
               */
 
-              const multiplier = pick.multiplier || 0;
+              let multiplier = pick.multiplier || 0;
+
+              const isBenchSlot = pick.position > 11;
+
+              if (
+                picksData.active_chip === 'bboost' &&
+                isBenchSlot &&
+                multiplier === 0
+              ) {
+                multiplier = 1;
+              }
+
+              if (pick.is_captain) {
+                multiplier =
+                  picksData.active_chip === '3xc'
+                    ? 3
+                    : 2;
+              }
+
               const contribution = pointsBasis * multiplier;
 
               predictedTotal += contribution;
@@ -212,7 +234,35 @@ export default async function handler(req, res) {
                 expectedPoints:
                   Math.round(epThis * 10) / 10,
                 predictedContribution:
-                  Math.round(contribution * 10) / 10
+                  Math.round(contribution * 10) / 10,
+
+                /*
+                  Season-to-date stats, used by the squad
+                  comparison view to give a "realistic" read
+                  on a still-to-play player rather than just
+                  a bare projected-points number - goals/
+                  assists/clean sheets/bonus so far this
+                  season, and FPL's own doubt flag for
+                  players who might not even play.
+                */
+                goals: element
+                  ? Number(element.goals_scored || 0)
+                  : 0,
+                assists: element
+                  ? Number(element.assists || 0)
+                  : 0,
+                cleanSheets: element
+                  ? Number(element.clean_sheets || 0)
+                  : 0,
+                bonus: element
+                  ? Number(element.bonus || 0)
+                  : 0,
+                form: element
+                  ? Number(element.form || 0)
+                  : 0,
+                chanceOfPlaying:
+                  element?.chance_of_playing_this_round ??
+                  null
               };
 
               if (multiplier > 0) {
