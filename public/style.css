@@ -3174,18 +3174,8 @@ p {
 }
 
 
-.match-card-goal-entry {
-  margin-bottom: 10px;
-}
-
-
-.match-card-goal-entry:last-child {
-  margin-bottom: 0;
-}
-
-
 .match-card-scorer-line {
-  margin: 0;
+  margin: 0 0 8px;
 
   display: flex;
   flex-wrap: wrap;
@@ -3215,46 +3205,10 @@ p {
 }
 
 
-.match-card-goal-minute {
-  flex-shrink: 0;
-
-  color: var(--muted);
-
-  font-size: 10px;
-  font-weight: 700;
-}
-
-
 .match-card-goal-icons {
   flex-shrink: 0;
 
   font-size: 9px;
-}
-
-
-.match-card-goal-tag {
-  flex-shrink: 0;
-
-  padding: 1px 5px;
-
-  border-radius: 4px;
-
-  background: var(--surface-2);
-
-  color: var(--muted);
-
-  font-size: 8px;
-  font-weight: 900;
-
-  text-transform: uppercase;
-  letter-spacing: .02em;
-}
-
-
-.match-card-goal-tag.og {
-  background: var(--red-soft);
-
-  color: var(--red);
 }
 
 
@@ -3344,37 +3298,23 @@ p {
 }
 
 
+.pitch-compact .pitch-player-points {
+  margin-top: 1px;
+
+  font-size: 10.5px;
+}
+
+
 .fixture-subs {
-  margin-top: 10px;
+  margin-top: 12px;
+
+  padding-top: 12px;
+
+  border-top: 1px solid var(--border);
 }
 
 
 .fixture-subs-list {
-  display: flex;
-  flex-wrap: wrap;
-
-  gap: 6px;
-}
-
-
-.fixture-sub-chip {
-  padding: 4px 9px 4px 7px;
-
-  border: 1px solid var(--green-soft);
-  border-radius: 999px;
-
-  background: var(--green-soft);
-
-  color: var(--green);
-
-  font-size: 10px;
-  font-weight: 800;
-
-  white-space: nowrap;
-}
-
-
-.fixture-subs-list-detailed {
   display: flex;
   flex-direction: column;
 
@@ -3384,7 +3324,6 @@ p {
 
 .fixture-sub-row {
   display: flex;
-  flex-wrap: wrap;
 
   align-items: center;
   gap: 8px;
@@ -3395,31 +3334,37 @@ p {
   border-radius: 10px;
 
   background: var(--surface-2);
+}
+
+
+.fixture-sub-shirt {
+  flex-shrink: 0;
+
+  font-size: 13px;
+}
+
+
+.fixture-sub-name {
+  overflow: hidden;
+
+  flex: 1;
+  min-width: 0;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
   font-size: 10.5px;
   font-weight: 800;
 }
 
 
-.fixture-sub-minute {
+.fixture-sub-points {
   flex-shrink: 0;
 
-  min-width: 26px;
-
-  color: var(--muted);
-
-  font-size: 9.5px;
-  font-weight: 700;
-}
-
-
-.fixture-sub-off {
-  color: var(--red);
-}
-
-
-.fixture-sub-on {
   color: var(--green);
+
+  font-size: 12px;
+  font-weight: 900;
 }
 
 

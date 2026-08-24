@@ -2086,12 +2086,12 @@ function anyFixtureStillLive() {
 
 
 /*
-  A circular crest badge. Renders the real club logo when the
-  backend resolved one (via api-football.com, only when the app
-  owner has configured an API key - see api/lib/apiFootball.js);
-  otherwise (and if the image ever fails to load) falls back to a
-  plain short-code badge, so a missing/broken logo never leaves a
-  blank hole in the layout.
+  A circular crest badge. Renders the real club badge when the
+  backend resolved one (the Premier League's own badge CDN, built
+  from each team's FPL "code" - see api/fixtures.js); otherwise
+  (and if the image ever fails to load) falls back to a plain
+  short-code badge, so a missing/broken logo never leaves a blank
+  hole in the layout.
 */
 
 function teamCrest(code, size, logoUrl) {
@@ -2319,47 +2319,18 @@ function closeFixtureDetail() {
   card is meant to give at a glance, rather than two separate
   unlinked lists.
 
-  Two data qualities feed this, and each gets its own renderer:
-
-  - events.enriched (api-football, when configured): a real per-
-    goal record with its own minute and its own directly-paired
-    assist, plus penalty/own-goal tags. This is shown goal-by-
-    goal, in order.
-  - events (FPL's own aggregate counts): no per-goal minute and
-    no pairing - just "these players scored N times" and
-    "these players assisted" as two unlinked lists. A 1:1 scorer
-    <-> assist pairing is only ever printed when it's actually
-    unambiguous (exactly one scorer, exactly one goal, exactly
-    one assist for that side) - anything else (a brace, multiple
-    scorers) falls back to a scorer list (⚽ repeated per goal)
-    plus one combined assist line, rather than guessing a pairing
-    that isn't really known.
+  FPL's own API is aggregate-count-only - no per-goal minute and
+  no real pairing, just "these players scored N times" and "these
+  players assisted" as two unlinked lists. A 1:1 scorer <-> assist
+  pairing is only ever printed when it's actually unambiguous
+  (exactly one scorer, exactly one goal, exactly one assist for
+  that side) - anything else (a brace, multiple scorers) falls
+  back to a scorer list (⚽ repeated per goal) plus one combined
+  assist line, rather than guessing a pairing that isn't really
+  known.
 */
 
-function enrichedGoalAssistLines(enriched, teamKey) {
-
-  const goals =
-    (enriched?.goals || []).filter(goal => goal.team === teamKey);
-
-  return goals
-    .map(
-      goal => `
-        <div class="match-card-goal-entry">
-          <p class="match-card-scorer-line">
-            <span class="match-card-scorer-name">${escapeHtml(goal.name)}</span>
-            ${goal.minute ? `<span class="match-card-goal-minute">${escapeHtml(goal.minute)}'</span>` : ''}
-            ${goal.isPenalty ? '<span class="match-card-goal-tag">PEN</span>' : ''}
-            ${goal.isOwnGoal ? '<span class="match-card-goal-tag og">OG</span>' : ''}
-          </p>
-          ${goal.assistName ? `<p class="match-card-assist-line">assist: ${escapeHtml(goal.assistName)}</p>` : ''}
-        </div>
-      `
-    )
-    .join('');
-
-}
-
-function fallbackGoalAssistLines(events, teamKey) {
+function goalAssistLines(events, teamKey) {
 
   const scorers =
     (events?.scorers || []).filter(entry => entry.team === teamKey);
@@ -2406,9 +2377,7 @@ function fallbackGoalAssistLines(events, teamKey) {
 function matchCardScorerColumn(events, teamKey, side) {
 
   const lines =
-    events?.enriched
-      ? enrichedGoalAssistLines(events.enriched, teamKey)
-      : fallbackGoalAssistLines(events, teamKey);
+    goalAssistLines(events, teamKey);
 
   return `
     <div class="match-card-scorers-col match-card-scorers-${side}">
@@ -2422,14 +2391,12 @@ function matchCardScorerColumn(events, teamKey, side) {
 /*
   Lineups render as a pitch view - same GKP/DEF/MID/FWD row
   layout as the Squad tab's pitch (pitchRows() below), holding
-  only the 11 who actually started. Anyone who came off the
-  bench is listed separately underneath as a substitute.
-
-  When api-football enrichment is available (enrichedSubs), that
-  list shows real pairing and timing - who came off, who came on,
-  and the minute. FPL's own API has neither, so without
-  enrichment this falls back to a plain "came off the bench"
-  chip list with no pairing/timing claimed.
+  only the 11 who actually started, each carrying their FPL
+  points for the Gameweek (the same figure shown on the Squad
+  tab) rather than any substitution timing FPL's API doesn't
+  provide. Anyone who came off the bench is listed separately
+  underneath, also with their points - so this reads as "who
+  actually delivered", not just "who was on the pitch".
 */
 
 function fixtureLineupPlayerCard(player) {
@@ -2442,13 +2409,16 @@ function fixtureLineupPlayerCard(player) {
       <div class="pitch-player-name">
         ${escapeHtml(player.name)}
       </div>
+      <div class="pitch-player-points">
+        ${Math.round(player.points || 0)}
+      </div>
     </div>
   `;
 
 }
 
 
-function fixtureLineupPitch(teamCode, teamName, crestUrl, players, enrichedSubs) {
+function fixtureLineupPitch(teamCode, teamName, crestUrl, players) {
 
   const starters =
     players.filter(player => player.started !== false);
@@ -2457,19 +2427,19 @@ function fixtureLineupPitch(teamCode, teamName, crestUrl, players, enrichedSubs)
     players.filter(player => player.started === false);
 
   const subsSection =
-    enrichedSubs && enrichedSubs.length
+    subs.length
       ? `
         <div class="fixture-subs">
-          <p class="fixture-lineup-title">Substitutions</p>
-          <div class="fixture-subs-list fixture-subs-list-detailed">
+          <p class="fixture-lineup-title">Substitutes used</p>
+          <div class="fixture-subs-list">
             ${
-              enrichedSubs
+              subs
                 .map(
-                  sub => `
+                  player => `
                     <div class="fixture-sub-row">
-                      <span class="fixture-sub-minute">${sub.minute ? `${escapeHtml(sub.minute)}'` : ''}</span>
-                      <span class="fixture-sub-off">↓ ${escapeHtml(sub.offName)}</span>
-                      <span class="fixture-sub-on">↑ ${escapeHtml(sub.onName || '—')}</span>
+                      <span class="fixture-sub-shirt">👕</span>
+                      <span class="fixture-sub-name">${escapeHtml(player.name)}</span>
+                      <span class="fixture-sub-points">${Math.round(player.points || 0)}</span>
                     </div>
                   `
                 )
@@ -2478,23 +2448,7 @@ function fixtureLineupPitch(teamCode, teamName, crestUrl, players, enrichedSubs)
           </div>
         </div>
       `
-      : subs.length
-        ? `
-          <div class="fixture-subs">
-            <p class="fixture-lineup-title">Substitutes used</p>
-            <div class="fixture-subs-list">
-              ${
-                subs
-                  .map(
-                    player =>
-                      `<span class="fixture-sub-chip">🔄 ${escapeHtml(player.name)}</span>`
-                  )
-                  .join('')
-              }
-            </div>
-          </div>
-        `
-        : '';
+      : '';
 
   return `
     <div class="fixture-pitch-team">
@@ -2625,10 +2579,11 @@ function buildFixtureDetailHtml(fixture) {
       fixture.lineups
         ? `
           <p class="fixture-detail-note">
-            The 11 who started, plus who came off the bench${events?.enriched ? ' - real substitution timing below' : " - FPL doesn't publish pre-match team news (or which starter a sub replaced), so this fills in with real data once the match kicks off"}.
+            The 11 who started, plus who came off the bench - each with
+            their FPL points for the Gameweek.
           </p>
-          ${fixtureLineupPitch(fixture.homeTeam, fixture.homeTeamName, fixture.homeCrest, fixture.lineups.home, (events?.enriched?.subs || []).filter(sub => sub.team === 'h'))}
-          ${fixtureLineupPitch(fixture.awayTeam, fixture.awayTeamName, fixture.awayCrest, fixture.lineups.away, (events?.enriched?.subs || []).filter(sub => sub.team === 'a'))}
+          ${fixtureLineupPitch(fixture.homeTeam, fixture.homeTeamName, fixture.homeCrest, fixture.lineups.home)}
+          ${fixtureLineupPitch(fixture.awayTeam, fixture.awayTeamName, fixture.awayCrest, fixture.lineups.away)}
         `
         : `
           <p class="fixture-detail-note">

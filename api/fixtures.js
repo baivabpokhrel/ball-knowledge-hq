@@ -1,9 +1,3 @@
-import {
-  apiFootballConfigured,
-  getApiFootballTeamMap,
-  enrichFixtureFromApiFootball
-} from './lib/apiFootball.js';
-
 const FPL = 'https://fantasy.premierleague.com/api';
 
 /*
@@ -52,22 +46,22 @@ async function getJson(url) {
 
     - events: who scored/assisted/was booked/etc, resolved
       from FPL's own per-fixture "stats" breakdown (real
-      match data, not a fantasy projection). events.enriched
-      carries the same information with real minutes and
-      real substitution pairing (who came off for whom) when
-      API_FOOTBALL_KEY is configured - see api/lib/
-      apiFootball.js - and is null otherwise, in which case
-      the frontend falls back to the aggregate-only fields.
+      match data, not a fantasy projection).
     - lineups: best-effort "who actually featured" per side,
       derived from event/{gw}/live/ once the match has
-      kicked off. FPL's API has no pre-match team-news feed,
-      so there is no way to show an official lineup
+      kicked off, each carrying that player's FPL points for
+      the Gameweek (the same figure shown elsewhere in the
+      app) so the lineup doubles as a quick "who actually
+      delivered" view. FPL's API has no pre-match team-news
+      feed, so there is no way to show an official lineup
       "confirmed ~60 minutes before kickoff" - this instead
       becomes available from kickoff onward, which is the
       real data FPL's API actually exposes.
-    - homeCrest/awayCrest: club logo URLs from api-football
-      when configured, null otherwise (the frontend falls
-      back to a plain text badge).
+    - homeCrest/awayCrest: official club badge URLs, built
+      from each team's own FPL "code" (stable across seasons)
+      against the Premier League's own badge CDN - no external
+      API/key needed, so this always resolves once a team has
+      that field.
   ===================================================
 */
 
@@ -104,21 +98,18 @@ export default async function handler(req, res) {
     );
 
     /*
-      Season start year (2025 for the 2025/26 season) - GW1's
-      deadline always falls in August, so its year IS the season's
-      start year, no month-adjustment needed. Only used to query
-      api-football, which is entirely optional (see lib/apiFootball.js).
+      The Premier League's own badge CDN, keyed by each team's
+      "code" field (a fixed per-club id that's stable across
+      seasons, unlike "id" which is just 1-20 for the current
+      season) - the same URL pattern the official FPL site itself
+      uses for team badges, so no external API or key is needed.
     */
-    const season = bootstrap.events?.[0]?.deadline_time
-      ? new Date(bootstrap.events[0].deadline_time).getUTCFullYear()
-      : new Date().getUTCFullYear();
-
-    const teamMap = apiFootballConfigured()
-      ? await getApiFootballTeamMap(season, bootstrap.teams)
-      : null;
-
     function crestFor(fplTeamId) {
-      return teamMap?.byFplTeamId.get(fplTeamId)?.logo || null;
+      const team = teamsById.get(fplTeamId);
+
+      return team?.code
+        ? `https://resources.premierleague.com/premierleague/badges/70/t${team.code}.png`
+        : null;
     }
 
     function playerLabel(elementId) {
@@ -194,7 +185,11 @@ export default async function handler(req, res) {
       any pre-match lineup feed, which FPL's API doesn't
       provide. "started" uses that player's Gameweek-level
       starts flag, which is only ambiguous in the rare case
-      their team plays twice in the same Gameweek.
+      their team plays twice in the same Gameweek. Each player
+      carries their own FPL "points" for the Gameweek (the raw,
+      un-captained figure - the same one shown on the Squad
+      tab) so this view doubles as "who actually delivered",
+      not just "who was on the pitch".
     */
     function lineupFor(fixture) {
 
@@ -255,7 +250,8 @@ export default async function handler(req, res) {
               id: element.id,
               name: element.web_name,
               position: type?.singular_name_short || '',
-              started
+              started,
+              points: Number(element.event_points || 0)
             };
           })
           .filter(Boolean)
@@ -269,70 +265,49 @@ export default async function handler(req, res) {
 
     }
 
-    const rows = await Promise.all(
-      (Array.isArray(fixtures) ? fixtures : [])
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(a.kickoff_time || 0) -
-            new Date(b.kickoff_time || 0)
-        )
-        .map(async fixture => {
-          const home = teamsById.get(fixture.team_h);
-          const away = teamsById.get(fixture.team_a);
+    const rows = (Array.isArray(fixtures) ? fixtures : [])
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.kickoff_time || 0) -
+          new Date(b.kickoff_time || 0)
+      )
+      .map(fixture => {
+        const home = teamsById.get(fixture.team_h);
+        const away = teamsById.get(fixture.team_a);
 
-          const status =
-            fixture.finished || fixture.finished_provisional
-              ? 'final'
-              : fixture.started
-                ? 'live'
-                : 'upcoming';
+        const status =
+          fixture.finished || fixture.finished_provisional
+            ? 'final'
+            : fixture.started
+              ? 'live'
+              : 'upcoming';
 
-          const baseEvents =
+        return {
+          id: fixture.id,
+          kickoff: fixture.kickoff_time || null,
+          homeTeam: home?.short_name || '???',
+          awayTeam: away?.short_name || '???',
+          homeTeamName: home?.name || '',
+          awayTeamName: away?.name || '',
+          homeCrest: crestFor(fixture.team_h),
+          awayCrest: crestFor(fixture.team_a),
+          homeScore:
             status === 'upcoming'
               ? null
-              : eventsFor(fixture, status);
-
-          // Nothing to enrich before kickoff, and no point spending
-          // api-football's free-tier quota on it.
-          const enriched =
-            baseEvents && teamMap
-              ? await enrichFixtureFromApiFootball({
-                  homeTeamId: fixture.team_h,
-                  awayTeamId: fixture.team_a,
-                  kickoff: fixture.kickoff_time,
-                  isFinal: status === 'final',
-                  season,
-                  teamMap
-                })
-              : null;
-
-          return {
-            id: fixture.id,
-            kickoff: fixture.kickoff_time || null,
-            homeTeam: home?.short_name || '???',
-            awayTeam: away?.short_name || '???',
-            homeTeamName: home?.name || '',
-            awayTeamName: away?.name || '',
-            homeCrest: crestFor(fixture.team_h),
-            awayCrest: crestFor(fixture.team_a),
-            homeScore:
-              status === 'upcoming'
-                ? null
-                : fixture.team_h_score ?? 0,
-            awayScore:
-              status === 'upcoming'
-                ? null
-                : fixture.team_a_score ?? 0,
-            status,
-            events:
-              baseEvents
-                ? { ...baseEvents, enriched }
-                : null,
-            lineups: lineupFor(fixture)
-          };
-        })
-    );
+              : fixture.team_h_score ?? 0,
+          awayScore:
+            status === 'upcoming'
+              ? null
+              : fixture.team_a_score ?? 0,
+          status,
+          events:
+            status === 'upcoming'
+              ? null
+              : eventsFor(fixture, status),
+          lineups: lineupFor(fixture)
+        };
+      });
 
     return res.status(200).json({
       gw,
