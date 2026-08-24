@@ -2085,6 +2085,21 @@ function anyFixtureStillLive() {
 }
 
 
+/*
+  A simple circular crest badge (short team code, e.g. "ARS") -
+  FPL's API doesn't hand out club crest images, and hot-linking
+  the Premier League's own CDN isn't reliable from outside their
+  own site, so this is a clean, self-contained stand-in rather
+  than a risk of broken/missing logos.
+*/
+
+function teamCrest(code, size) {
+
+  return `<span class="team-crest team-crest-${size || 'sm'}">${escapeHtml(code)}</span>`;
+
+}
+
+
 function fixtureRow(fixture) {
 
   const kickoff =
@@ -2122,7 +2137,7 @@ function fixtureRow(fixture) {
     <div class="fixture-row" data-fixture-id="${fixture.id}">
 
       <div class="fixture-team fixture-team-home">
-        ${escapeHtml(fixture.homeTeam)}
+        ${teamCrest(fixture.homeTeam, 'md')}
       </div>
 
       <div class="fixture-score">
@@ -2134,7 +2149,7 @@ function fixtureRow(fixture) {
       </div>
 
       <div class="fixture-team fixture-team-away">
-        ${escapeHtml(fixture.awayTeam)}
+        ${teamCrest(fixture.awayTeam, 'md')}
       </div>
 
       ${statusBadge}
@@ -2278,62 +2293,45 @@ function closeFixtureDetail() {
 
 
 /*
-  Match events are grouped by TEAM (not by category) so each
-  side's scorers/assists/cards/bonus/defensive-contributions
-  sit together in that team's own column - no more one flat
-  list mixing both sides, and no more "×N"/"+N pts" tags next
-  to names (the icon already says what happened; the count
-  wasn't adding anything worth the confusion).
+  PL-style scorer column: just goals (grouped per player, with
+  one ⚽ per goal so a brace/hat-trick is still visible without
+  the old "×N" tag) and, underneath, who assisted. Nothing else
+  (cards/bonus/defensive contributions/etc) shows here anymore -
+  this is meant to read exactly like a normal match score card,
+  not a full stats sheet. FPL's API has no minute-by-minute event
+  log, so - unlike a broadcaster's app - there's no kick-off time
+  to print next to a name; the goal/assist tally is the real data
+  actually available.
 */
 
-const FIXTURE_EVENT_CATEGORIES = [
-  { key: 'scorers', icon: '⚽' },
-  { key: 'assists', icon: '🅰️' },
-  { key: 'bonus', icon: '⭐' },
-  { key: 'defensiveContributions', icon: '🛡️' },
-  { key: 'yellowCards', icon: '🟨' },
-  { key: 'redCards', icon: '🟥' },
-  { key: 'penaltiesSaved', icon: '🧤' },
-  { key: 'penaltiesMissed', icon: '❌' },
-  { key: 'ownGoals', icon: '⚠️' }
-];
+function matchCardScorerColumn(events, teamKey, side) {
 
-function teamEventLines(events, teamKey) {
-
-  const lines = [];
-
-  FIXTURE_EVENT_CATEGORIES.forEach(category => {
-
-    (events[category.key] || [])
+  const goalLines =
+    (events?.scorers || [])
       .filter(entry => entry.team === teamKey)
-      .forEach(entry => {
-
-        lines.push(`
-          <p class="fixture-event-line">
-            <span class="fixture-event-icon">${category.icon}</span>
+      .map(
+        entry => `
+          <p class="match-card-scorer-line">
             ${escapeHtml(entry.name)}
+            <span class="match-card-goal-icons">${'⚽'.repeat(Math.max(1, entry.value))}</span>
           </p>
-        `);
+        `
+      )
+      .join('');
 
-      });
+  const assistNames =
+    (events?.assists || [])
+      .filter(entry => entry.team === teamKey)
+      .map(entry => escapeHtml(entry.name));
 
-  });
-
-  return lines;
-
-}
-
-
-function fixtureEventsColumn(title, lines) {
+  const assistLine =
+    assistNames.length
+      ? `<p class="match-card-assist-line">🅰️ ${assistNames.join(', ')}</p>`
+      : '';
 
   return `
-    <div class="fixture-lineup-column">
-      <p class="fixture-lineup-title">${escapeHtml(title)}</p>
-      ${
-        lines.length
-          ? lines.join('')
-          : '<p class="fixture-lineup-empty">No events yet.</p>'
-      }
+    <div class="match-card-scorers-col match-card-scorers-${side}">
+      ${goalLines}${assistLine}
     </div>
   `;
 
@@ -2341,11 +2339,13 @@ function fixtureEventsColumn(title, lines) {
 
 
 /*
-  Lineups render as a pitch view - same GKP/DEF/MID/FWD
-  row layout as the Squad tab's pitch (pitchRows() below),
-  just with a lighter player card since there's no FPL
-  points/captaincy/ownership context for a real-world
-  match lineup, only who played and whether they started.
+  Lineups render as a pitch view - same GKP/DEF/MID/FWD row
+  layout as the Squad tab's pitch (pitchRows() below), holding
+  only the 11 who actually started. Anyone who came off the
+  bench is listed separately underneath as a substitute, rather
+  than crowding onto the pitch - FPL's API doesn't say which
+  starter they replaced or when, so that's shown plainly rather
+  than guessed at.
 */
 
 function fixtureLineupPlayerCard(player) {
@@ -2358,24 +2358,34 @@ function fixtureLineupPlayerCard(player) {
       <div class="pitch-player-name">
         ${escapeHtml(player.name)}
       </div>
-      ${player.started === false ? '<span class="pitch-sub-tag in">SUB</span>' : ''}
     </div>
   `;
 
 }
 
 
-function fixtureLineupPitch(title, players) {
+function fixtureLineupPitch(teamCode, teamName, players) {
+
+  const starters =
+    players.filter(player => player.started !== false);
+
+  const subs =
+    players.filter(player => player.started === false);
 
   return `
     <div class="fixture-pitch-team">
-      <p class="fixture-lineup-title">${escapeHtml(title)}</p>
+
+      <p class="fixture-lineup-title">
+        ${teamCrest(teamCode, 'sm')}
+        ${escapeHtml(teamName)}
+      </p>
+
       ${
-        players.length
+        starters.length
           ? `
             <div class="pitch pitch-compact">
               ${
-                pitchRows(players)
+                pitchRows(starters)
                   .map(
                     row => `
                       <div class="pitch-row">
@@ -2389,6 +2399,27 @@ function fixtureLineupPitch(title, players) {
           `
           : '<p class="fixture-lineup-empty">No data yet.</p>'
       }
+
+      ${
+        subs.length
+          ? `
+            <div class="fixture-subs">
+              <p class="fixture-lineup-title">Substitutes used</p>
+              <div class="fixture-subs-list">
+                ${
+                  subs
+                    .map(
+                      player =>
+                        `<span class="fixture-sub-chip">🔄 ${escapeHtml(player.name)}</span>`
+                    )
+                    .join('')
+                }
+              </div>
+            </div>
+          `
+          : ''
+      }
+
     </div>
   `;
 
@@ -2411,73 +2442,73 @@ function buildFixtureDetailHtml(fixture) {
 
   const statusLabel =
     fixture.status === 'live'
-      ? 'Live now'
+      ? 'Live'
       : fixture.status === 'final'
-        ? 'Full time'
+        ? 'Full-time'
         : `Kicks off ${kickoff}`;
 
   const events =
     fixture.events;
 
-  const homeEventLines =
-    events
-      ? teamEventLines(events, 'h')
-      : [];
+  const homeColumn =
+    matchCardScorerColumn(events, 'h', 'home');
 
-  const awayEventLines =
-    events
-      ? teamEventLines(events, 'a')
-      : [];
+  const awayColumn =
+    matchCardScorerColumn(events, 'a', 'away');
 
-  const noEventsYet =
-    !events ||
-    (
-      !homeEventLines.length &&
-      !awayEventLines.length
-    );
+  const noGoalsYet =
+    fixture.status !== 'upcoming' &&
+    !(events?.scorers || []).length;
 
   return `
 
-    <div class="scenario-sheet-header">
-      <h3>${escapeHtml(fixture.homeTeamName)} vs ${escapeHtml(fixture.awayTeamName)}</h3>
-      <small>${statusLabel}</small>
+    <div class="match-card-meta">
+      <span class="match-card-meta-league">Premier League</span>
+      <span class="match-card-meta-status ${fixture.status === 'live' ? 'live' : ''}">${statusLabel}</span>
     </div>
 
-    <div class="fixture-detail-score">
-      ${
-        fixture.status === 'upcoming'
-          ? 'vs'
-          : `${fixture.homeScore} - ${fixture.awayScore}`
-      }
+    <div class="match-card-score-row">
+
+      <div class="match-card-side">
+        ${teamCrest(fixture.homeTeam, 'lg')}
+        <span class="match-card-team-name">${escapeHtml(fixture.homeTeamName)}</span>
+      </div>
+
+      <div class="match-card-score-value">
+        ${
+          fixture.status === 'upcoming'
+            ? 'vs'
+            : `${fixture.homeScore} - ${fixture.awayScore}`
+        }
+      </div>
+
+      <div class="match-card-side">
+        ${teamCrest(fixture.awayTeam, 'lg')}
+        <span class="match-card-team-name">${escapeHtml(fixture.awayTeamName)}</span>
+      </div>
+
     </div>
 
     ${
       fixture.status === 'upcoming'
         ? `
-          <p class="fixture-detail-note">
+          <p class="fixture-detail-note" style="text-align:center;">
             Nothing to show yet - check back once kickoff happens.
           </p>
         `
-        : `
-          <div class="section-heading">
-            <h3>Match events</h3>
-          </div>
-          ${
-            noEventsYet
-              ? '<p class="fixture-detail-note">No notable events recorded yet.</p>'
-              : `
-                <div class="fixture-events-columns">
-                  ${fixtureEventsColumn(fixture.homeTeamName, homeEventLines)}
-                  ${fixtureEventsColumn(fixture.awayTeamName, awayEventLines)}
-                </div>
-              `
-          }
-          ${
-            events && !events.bonusFinal
-              ? '<p class="fixture-detail-note">Bonus points are provisional until the match - and Gameweek - are fully checked.</p>'
-              : ''
-          }
-        `
+        : noGoalsYet
+          ? `
+            <p class="fixture-detail-note" style="text-align:center; padding-top:14px; border-top:1px solid var(--border);">
+              No goals yet.
+            </p>
+          `
+          : `
+            <div class="match-card-scorers">
+              ${homeColumn}
+              <span class="match-card-ball">⚽</span>
+              ${awayColumn}
+            </div>
+          `
     }
 
     <div class="section-heading">
@@ -2488,11 +2519,12 @@ function buildFixtureDetailHtml(fixture) {
       fixture.lineups
         ? `
           <p class="fixture-detail-note">
-            Reflects who's actually featured so far - FPL doesn't publish
-            pre-match team news, so this fills in once the match kicks off.
+            The 11 who started, plus who came off the bench - FPL doesn't
+            publish pre-match team news (or which starter a sub replaced),
+            so this fills in with real data once the match kicks off.
           </p>
-          ${fixtureLineupPitch(fixture.homeTeamName, fixture.lineups.home)}
-          ${fixtureLineupPitch(fixture.awayTeamName, fixture.lineups.away)}
+          ${fixtureLineupPitch(fixture.homeTeam, fixture.homeTeamName, fixture.lineups.home)}
+          ${fixtureLineupPitch(fixture.awayTeam, fixture.awayTeamName, fixture.lineups.away)}
         `
         : `
           <p class="fixture-detail-note">
