@@ -3357,21 +3357,21 @@ function emptyScenario() {
 }
 
 /*
-  A scenario only "counts" once it differs from the
-  untouched default (assumed to play 60+ minutes, nothing
-  else) - so opening the sheet and closing it again without
-  changing anything never adds phantom points anywhere.
+  A scenario counts the moment the person has explicitly
+  interacted with it. compareScenarios only ever gets an entry
+  for a player once a control has actually been tapped (see
+  ensureActiveScenario/setScenarioField/stepScenarioField/
+  toggleScenarioField below) - merely opening the sheet and
+  closing it again without touching anything never creates one.
+  So existence here already means "this was a deliberate
+  choice", including when that choice is just confirming the
+  default 60+ mins/nothing-else outcome (2pts) - which previously
+  couldn't be selected on its own, since it was indistinguishable
+  from never having touched the sheet at all.
 */
 
 function isScenarioMeaningful(scenario) {
-  return !!scenario && (
-    scenario.appearance !== 'full' ||
-    scenario.goals > 0 ||
-    scenario.assists > 0 ||
-    scenario.cleanSheet ||
-    scenario.defCon ||
-    scenario.bonus > 0
-  );
+  return !!scenario;
 }
 
 function scenarioRawPoints(position, scenario) {
