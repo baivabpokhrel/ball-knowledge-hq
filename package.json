@@ -6,5 +6,8 @@
   "scripts": {
     "dev": "vercel dev",
     "check-final": "node scripts/update-history.mjs"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
   }
 }
