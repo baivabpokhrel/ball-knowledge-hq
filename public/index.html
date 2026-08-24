@@ -462,6 +462,40 @@
       </div>
 
 
+      <!-- GW SELECTOR -->
+
+      <section
+        class="admin-controls-card"
+        style="margin-bottom:12px;"
+      >
+
+        <label
+          class="form-label"
+          for="fixturesGwSelect"
+        >
+          GAMEWEEK
+        </label>
+
+
+        <select
+          id="fixturesGwSelect"
+          class="form-input"
+        >
+
+          <option>
+            Loading…
+          </option>
+
+        </select>
+
+      </section>
+
+
+      <p class="pitch-hint">
+        Tap a match for scorers, assists, and the lineup once it's kicked off.
+      </p>
+
+
       <div id="fixturesBody">
 
         <div class="empty">
@@ -652,7 +686,43 @@
   </div>
 
 
-  <script src="/app.js?v=46"></script>
+  <!-- ==================================================
+       FIXTURE DETAIL SHEET (tap a match - scorers,
+       assists, other events, and lineups once available)
+  =================================================== -->
+
+  <div
+    id="fixtureSheet"
+    class="player-info-sheet"
+    hidden
+  >
+
+    <div
+      class="player-info-backdrop"
+      data-close-fixture-sheet
+    ></div>
+
+
+    <div class="player-info-content">
+
+      <button
+        id="closeFixtureSheet"
+        class="player-info-close"
+        type="button"
+        data-close-fixture-sheet
+      >
+        ✕
+      </button>
+
+
+      <div id="fixtureDetailBody"></div>
+
+    </div>
+
+  </div>
+
+
+  <script src="/app.js?v=47"></script>
 
 </body>
 

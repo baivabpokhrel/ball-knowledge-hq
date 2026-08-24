@@ -121,8 +121,10 @@ let activeScenarioPlayerId =
 
 
 /*
-  Real-world fixtures/results for the current Gameweek -
-  independent of any manager's squad.
+  Real-world fixtures/results - independent of any manager's
+  squad. fixturesGw defaults to the current Gameweek but can
+  be switched via the tab's own GW selector; fixturesData
+  always holds just that one Gameweek's fixtures.
 */
 
 let fixturesData =
@@ -131,6 +133,19 @@ let fixturesData =
 
 let fixturesLoading =
   false;
+
+
+let fixturesGw =
+  null;
+
+
+/*
+  Which real-world fixture the "tap a match" detail sheet is
+  currently showing.
+*/
+
+let activeFixtureId =
+  null;
 
 
 /* =====================================================
@@ -1913,7 +1928,68 @@ async function loadSquadsData() {
    FIXTURES TAB (real-world matches, not squad-specific)
 ===================================================== */
 
-async function loadFixturesData() {
+/*
+  Every Gameweek 1-38, current one first, then descending -
+  matches buildPublicGwSelect's convention but doesn't cap at
+  the current GW, since a real match schedule is known well
+  ahead of time (unlike squads/predictions, which need a
+  Gameweek's deadline to have passed).
+*/
+
+const SEASON_GW_COUNT = 38;
+
+function buildFixturesGwSelect() {
+
+  const select =
+    $('fixturesGwSelect');
+
+  if (
+    !select ||
+    !dashboardData
+  ) {
+    return;
+  }
+
+
+  const currentGw =
+    getCurrentGw();
+
+  if (fixturesGw == null) {
+    fixturesGw = currentGw;
+  }
+
+
+  select.innerHTML =
+    '';
+
+  for (
+    let gw = SEASON_GW_COUNT;
+    gw >= 1;
+    gw--
+  ) {
+
+    const option =
+      document.createElement('option');
+
+    option.value =
+      String(gw);
+
+    option.textContent =
+      gw === currentGw
+        ? `GW ${gw} — Current`
+        : `GW ${gw}`;
+
+    select.appendChild(option);
+
+  }
+
+  select.value =
+    String(fixturesGw);
+
+}
+
+
+async function loadFixturesData(gw) {
 
   if (
     !dashboardData ||
@@ -1923,19 +1999,22 @@ async function loadFixturesData() {
   }
 
 
+  if (Number.isInteger(gw)) {
+    fixturesGw = gw;
+  } else if (fixturesGw == null) {
+    fixturesGw = getCurrentGw();
+  }
+
+
   fixturesLoading =
     true;
 
 
   try {
 
-    const gw =
-      getCurrentGw();
-
-
     const response =
       await fetch(
-        `/api/fixtures?gw=${gw}&_=${Date.now()}`,
+        `/api/fixtures?gw=${fixturesGw}&_=${Date.now()}`,
         {
           cache:
             'no-store'
@@ -1972,10 +2051,7 @@ async function loadFixturesData() {
     );
 
 
-    if (
-      $('fixturesBody') &&
-      !fixturesData
-    ) {
+    if ($('fixturesBody')) {
 
       $('fixturesBody').innerHTML = `
         <div class="empty">
@@ -1998,6 +2074,7 @@ async function loadFixturesData() {
 function anyFixtureStillLive() {
 
   return !!(
+    fixturesGw === getCurrentGw() &&
     fixturesData &&
     Array.isArray(fixturesData.fixtures) &&
     fixturesData.fixtures.some(
@@ -2042,7 +2119,7 @@ function fixtureRow(fixture) {
 
 
   return `
-    <div class="fixture-row">
+    <div class="fixture-row" data-fixture-id="${fixture.id}">
 
       <div class="fixture-team fixture-team-home">
         ${escapeHtml(fixture.homeTeam)}
@@ -2075,17 +2152,24 @@ function renderFixtures() {
   }
 
 
+  buildFixturesGwSelect();
+
+
+  const gw =
+    fixturesGw ?? getCurrentGw();
+
+
   if ($('fixturesSubtitle')) {
 
     $('fixturesSubtitle').textContent =
-      `Gameweek ${getCurrentGw()} Premier League matches.`;
+      `Gameweek ${gw} Premier League matches.`;
 
   }
 
 
   if (
     fixturesLoading &&
-    !fixturesData
+    (!fixturesData || fixturesData.gw !== gw)
   ) {
 
     $('fixturesBody').innerHTML = `
@@ -2099,14 +2183,17 @@ function renderFixtures() {
   }
 
 
-  if (!fixturesData) {
+  if (
+    !fixturesData ||
+    fixturesData.gw !== gw
+  ) {
 
     if (
       !fixturesLoading &&
       dashboardData
     ) {
 
-      loadFixturesData();
+      loadFixturesData(gw);
 
     }
 
@@ -2138,6 +2225,226 @@ function renderFixtures() {
     fixtures
       .map(fixtureRow)
       .join('');
+
+}
+
+
+/* =====================================================
+   FIXTURE DETAIL SHEET (tap a match)
+===================================================== */
+
+function findFixture(fixtureId) {
+
+  return (
+    (fixturesData?.fixtures || []).find(
+      fixture => Number(fixture.id) === Number(fixtureId)
+    ) || null
+  );
+
+}
+
+
+function openFixtureDetail(fixtureId) {
+
+  const fixture =
+    findFixture(fixtureId);
+
+  if (!fixture || !$('fixtureSheet')) {
+    return;
+  }
+
+  activeFixtureId =
+    fixtureId;
+
+  $('fixtureDetailBody').innerHTML =
+    buildFixtureDetailHtml(fixture);
+
+  $('fixtureSheet').hidden =
+    false;
+
+}
+
+
+function closeFixtureDetail() {
+
+  if ($('fixtureSheet')) {
+    $('fixtureSheet').hidden = true;
+  }
+
+  activeFixtureId =
+    null;
+
+}
+
+
+/*
+  One line per player for a match-events category (scorers,
+  assists, cards, etc) - name, side (H/A), and a ×N tag once
+  they've done it more than once (a brace, a second booking).
+  Bonus points use a "+N" suffix instead, shown even at 1.
+*/
+
+function matchEventLine(icon, entries, valueSuffix) {
+
+  if (!entries || !entries.length) {
+    return '';
+  }
+
+  return `
+    <p class="fixture-event-line">
+      <span class="fixture-event-icon">${icon}</span>
+      ${
+        entries
+          .map(entry => {
+            const tag =
+              valueSuffix
+                ? ` ${valueSuffix === 'pts' ? '+' : '×'}${entry.value}${valueSuffix === 'pts' ? ' pts' : ''}`
+                : entry.value > 1
+                  ? ` ×${entry.value}`
+                  : '';
+
+            return `${escapeHtml(entry.name)} <small>(${entry.team === 'h' ? 'H' : 'A'})</small>${tag}`;
+          })
+          .join(', ')
+      }
+    </p>
+  `;
+
+}
+
+
+function fixtureLineupColumn(title, players) {
+
+  return `
+    <div class="fixture-lineup-column">
+      <p class="fixture-lineup-title">${escapeHtml(title)}</p>
+      ${
+        players.length
+          ? players
+              .map(
+                player => `
+                  <p class="fixture-lineup-player">
+                    <small>${escapeHtml(player.position)}</small>
+                    ${escapeHtml(player.name)}
+                    ${player.started === false ? '<span class="fixture-sub-tag">sub</span>' : ''}
+                  </p>
+                `
+              )
+              .join('')
+          : '<p class="fixture-lineup-empty">No data yet.</p>'
+      }
+    </div>
+  `;
+
+}
+
+
+function buildFixtureDetailHtml(fixture) {
+
+  const kickoff =
+    fixture.kickoff
+      ? new Date(fixture.kickoff).toLocaleString(
+          undefined,
+          {
+            weekday: 'short',
+            hour: 'numeric',
+            minute: '2-digit'
+          }
+        )
+      : 'TBC';
+
+  const statusLabel =
+    fixture.status === 'live'
+      ? 'Live now'
+      : fixture.status === 'final'
+        ? 'Full time'
+        : `Kicks off ${kickoff}`;
+
+  const events =
+    fixture.events;
+
+  const eventsHtml =
+    events
+      ? [
+          matchEventLine('⚽', events.scorers),
+          matchEventLine('🅰️', events.assists),
+          matchEventLine('⭐', events.bonus, 'pts'),
+          matchEventLine('🛡️', events.defensiveContributions),
+          matchEventLine('🟨', events.yellowCards),
+          matchEventLine('🟥', events.redCards),
+          matchEventLine('🧤', events.penaltiesSaved),
+          matchEventLine('❌', events.penaltiesMissed),
+          matchEventLine('⚠️', events.ownGoals)
+        ].join('')
+      : '';
+
+  const noEventsYet =
+    events &&
+    !eventsHtml.trim();
+
+  return `
+
+    <div class="scenario-sheet-header">
+      <h3>${escapeHtml(fixture.homeTeamName)} vs ${escapeHtml(fixture.awayTeamName)}</h3>
+      <small>${statusLabel}</small>
+    </div>
+
+    <div class="fixture-detail-score">
+      ${
+        fixture.status === 'upcoming'
+          ? 'vs'
+          : `${fixture.homeScore} - ${fixture.awayScore}`
+      }
+    </div>
+
+    ${
+      fixture.status === 'upcoming'
+        ? `
+          <p class="fixture-detail-note">
+            Nothing to show yet - check back once kickoff happens.
+          </p>
+        `
+        : `
+          <div class="section-heading">
+            <h3>Match events</h3>
+          </div>
+          ${
+            eventsHtml && !noEventsYet
+              ? eventsHtml
+              : '<p class="fixture-detail-note">No notable events recorded yet.</p>'
+          }
+          ${
+            events && !events.bonusFinal
+              ? '<p class="fixture-detail-note">Bonus points are provisional until the match - and Gameweek - are fully checked.</p>'
+              : ''
+          }
+        `
+    }
+
+    <div class="section-heading">
+      <h3>Lineup</h3>
+    </div>
+
+    ${
+      fixture.lineups
+        ? `
+          <p class="fixture-detail-note">
+            Reflects who's actually featured so far - FPL doesn't publish
+            pre-match team news, so this fills in once the match kicks off.
+          </p>
+          <div class="fixture-lineups">
+            ${fixtureLineupColumn(fixture.homeTeamName, fixture.lineups.home)}
+            ${fixtureLineupColumn(fixture.awayTeamName, fixture.lineups.away)}
+          </div>
+        `
+        : `
+          <p class="fixture-detail-note">
+            Pending lineup - not yet available.
+          </p>
+        `
+    }
+
+  `;
 
 }
 
@@ -2631,6 +2938,56 @@ function defaultCompareEntry(entryId) {
 }
 
 
+/*
+  Explains, in plain language, when FPL's own auto-substitution
+  and captain/vice-captain fallback rules have kicked in for
+  this squad - so the points shown on the pitch below aren't a
+  mystery when they don't match the manager's original picks.
+*/
+
+function squadRulesNote(squad) {
+
+  const notes = [];
+
+  if (squad.captainFallback) {
+
+    notes.push(
+      squad.captainFallback.toName
+        ? `🧢 ${escapeHtml(squad.captainFallback.fromName)} didn't play, so the armband (and doubled points) moved to ${escapeHtml(squad.captainFallback.toName)}.`
+        : `🧢 Neither ${escapeHtml(squad.captainFallback.fromName)} nor the vice-captain played, so no player's points were doubled this Gameweek.`
+    );
+
+  }
+
+  if (
+    Array.isArray(squad.autoSubs) &&
+    squad.autoSubs.length
+  ) {
+
+    notes.push(
+      `🔄 Auto-subbed: ${squad.autoSubs.map(sub => `${escapeHtml(sub.inName)} on for ${escapeHtml(sub.outName)}`).join(', ')}.`
+    );
+
+  }
+
+  if (!notes.length) {
+    return '';
+  }
+
+  return `
+    <div class="squad-rules-note">
+      ${notes.map(note => `<p>${note}</p>`).join('')}
+      ${
+        squad.autoSubsFinal === false
+          ? '<p class="squad-rules-provisional">Provisional until FPL fully checks this Gameweek.</p>'
+          : ''
+      }
+    </div>
+  `;
+
+}
+
+
 function renderSelectedSquad() {
 
   if (!$('squadDetail')) {
@@ -2724,6 +3081,7 @@ function renderSelectedSquad() {
       </div>
     </div>
 
+    ${squadRulesNote(squad)}
 
     <p class="pitch-hint">
       Tap any player to see who else in the league owns them.
@@ -2866,8 +3224,20 @@ function scenarioRawPoints(position, scenario) {
 
 }
 
-function scenarioKey(entryId, playerId) {
-  return `${entryId}:${playerId}`;
+/*
+  Scenarios are keyed by the real player alone, not by which
+  manager's squad you tapped them from - a goal is the same
+  goal no matter whose team you're viewing. That's what lets
+  a player owned by BOTH sides of a comparison get simulated
+  once and have it apply everywhere they're counted, instead
+  of the person having to set the same scenario up twice.
+  Each side's own captain/chip multiplier is still applied
+  separately in sumScenarioPoints below, since that genuinely
+  does differ per squad.
+*/
+
+function scenarioKey(playerId) {
+  return String(playerId);
 }
 
 /*
@@ -2877,13 +3247,13 @@ function scenarioKey(entryId, playerId) {
   everywhere else in the app).
 */
 
-function sumScenarioPoints(entryId, players) {
+function sumScenarioPoints(players) {
 
   return players.reduce(
     (sum, player) => {
 
       const scenario =
-        compareScenarios[scenarioKey(entryId, player.id)];
+        compareScenarios[scenarioKey(player.id)];
 
       if (!isScenarioMeaningful(scenario)) {
         return sum;
@@ -3009,10 +3379,10 @@ function ordinal(n) {
   this player, the real points that scenario is worth.
 */
 
-function comparePlayerRow(player, entryId) {
+function comparePlayerRow(player, entryId, isShared) {
 
   const scenario =
-    compareScenarios[scenarioKey(entryId, player.id)];
+    compareScenarios[scenarioKey(player.id)];
 
   const meaningful =
     isScenarioMeaningful(scenario);
@@ -3031,6 +3401,16 @@ function comparePlayerRow(player, entryId) {
       ? `<span class="compare-doubt">⚠ ${player.chanceOfPlaying}% chance</span>`
       : '';
 
+  /*
+    Owned by both sides - flagging this makes it obvious why
+    simulating them once is enough (no need to repeat it on
+    the other side's list).
+  */
+  const sharedTag =
+    isShared
+      ? '<span class="compare-shared-tag">↔ both squads</span>'
+      : '';
+
   return `
     <div
       class="compare-player-row"
@@ -3042,7 +3422,7 @@ function comparePlayerRow(player, entryId) {
         ${statusDot(player.status)}
         ${escapeHtml(player.name)}
         ${player.isCaptain ? '<span class="pitch-armband-inline">C</span>' : ''}
-        <small>${escapeHtml(player.team)} &middot; ${escapeHtml(player.position)}</small>
+        <small>${escapeHtml(player.team)} &middot; ${escapeHtml(player.position)} ${sharedTag}</small>
       </div>
 
       <div class="compare-player-stats">
@@ -3185,10 +3565,10 @@ function renderSquadComparison() {
 
 
   const mySimulated =
-    sumScenarioPoints(Number(selectedSquadEntry), mine.toPlay);
+    sumScenarioPoints(mine.toPlay);
 
   const theirSimulated =
-    sumScenarioPoints(Number(compareEntry), theirs.toPlay);
+    sumScenarioPoints(theirs.toPlay);
 
   const myTotal =
     mine.lockedPoints + mySimulated;
@@ -3207,15 +3587,28 @@ function renderSquadComparison() {
     mine.toPlay.some(
       player =>
         isScenarioMeaningful(
-          compareScenarios[scenarioKey(selectedSquadEntry, player.id)]
+          compareScenarios[scenarioKey(player.id)]
         )
     ) ||
     theirs.toPlay.some(
       player =>
         isScenarioMeaningful(
-          compareScenarios[scenarioKey(compareEntry, player.id)]
+          compareScenarios[scenarioKey(player.id)]
         )
     );
+
+  /*
+    Players both squads happen to own, still to play on both
+    sides - simulating one of these applies everywhere it's
+    counted (see scenarioKey), so flag them in the lists below
+    rather than making the person re-enter the same scenario
+    twice.
+  */
+  const theirToPlayIds =
+    new Set(theirs.toPlay.map(player => Number(player.id)));
+
+  const myToPlayIds =
+    new Set(mine.toPlay.map(player => Number(player.id)));
 
 
   /*
@@ -3294,7 +3687,7 @@ function renderSquadComparison() {
             <h3>Your remaining players</h3>
           </div>
           <div class="compare-player-list">
-            ${mine.toPlay.map(player => comparePlayerRow(player, selectedSquadEntry)).join('')}
+            ${mine.toPlay.map(player => comparePlayerRow(player, selectedSquadEntry, theirToPlayIds.has(Number(player.id)))).join('')}
           </div>
         `
         : ''
@@ -3307,7 +3700,7 @@ function renderSquadComparison() {
             <h3>${escapeHtml(theirManager.manager)}'s remaining players</h3>
           </div>
           <div class="compare-player-list">
-            ${theirs.toPlay.map(player => comparePlayerRow(player, compareEntry)).join('')}
+            ${theirs.toPlay.map(player => comparePlayerRow(player, compareEntry, myToPlayIds.has(Number(player.id)))).join('')}
           </div>
         `
         : ''
@@ -3396,11 +3789,8 @@ function closeScenarioSheet() {
 
 function activeScenarioKey() {
 
-  return (
-    activeScenarioEntry != null &&
-    activeScenarioPlayerId != null
-  )
-    ? scenarioKey(activeScenarioEntry, activeScenarioPlayerId)
+  return activeScenarioPlayerId != null
+    ? scenarioKey(activeScenarioPlayerId)
     : null;
 
 }
@@ -3522,7 +3912,7 @@ function renderScenarioSheet() {
   }
 
   const scenario =
-    compareScenarios[scenarioKey(activeScenarioEntry, activeScenarioPlayerId)] ||
+    compareScenarios[scenarioKey(activeScenarioPlayerId)] ||
     emptyScenario();
 
   $('scenarioBody').innerHTML =
@@ -3754,9 +4144,17 @@ function pitchPlayerCard(
       : '';
 
 
+  const subTag =
+    player.substitutedOut
+      ? '<span class="pitch-sub-tag out">SUBBED OFF</span>'
+      : player.substitutedIn
+        ? '<span class="pitch-sub-tag in">AUTO-SUBBED IN</span>'
+        : '';
+
+
   return `
     <div
-      class="pitch-player"
+      class="pitch-player ${player.substitutedOut ? 'subbed-off' : ''}"
       data-player-id="${player.id}"
     >
 
@@ -3777,6 +4175,8 @@ function pitchPlayerCard(
       <div class="pitch-player-name">
         ${escapeHtml(player.name)}
       </div>
+
+      ${subTag}
 
       <div class="pitch-player-points ${isUpcoming ? 'pending' : ''}">
         ${
@@ -6767,6 +7167,75 @@ if ($('publicGwSelect')) {
     );
 
 }
+
+
+/* =====================================================
+   FIXTURES TAB - GW SELECTOR + TAP A MATCH FOR DETAIL
+===================================================== */
+
+if ($('fixturesGwSelect')) {
+
+  $('fixturesGwSelect')
+    .addEventListener(
+      'change',
+      event => {
+
+        const gw =
+          Number(event.target.value);
+
+        if (!Number.isInteger(gw) || gw < 1 || gw > SEASON_GW_COUNT) {
+          return;
+        }
+
+        fixturesGw = gw;
+        fixturesData = null;
+
+        renderFixtures();
+
+      }
+    );
+
+}
+
+
+if ($('fixturesBody')) {
+
+  $('fixturesBody')
+    .addEventListener(
+      'click',
+      event => {
+
+        const row =
+          event.target.closest('[data-fixture-id]');
+
+        if (!row) {
+          return;
+        }
+
+        openFixtureDetail(
+          Number(row.dataset.fixtureId)
+        );
+
+      }
+    );
+
+}
+
+
+document
+  .querySelectorAll(
+    '[data-close-fixture-sheet]'
+  )
+  .forEach(
+    element => {
+
+      element.addEventListener(
+        'click',
+        closeFixtureDetail
+      );
+
+    }
+  );
 
 
 /* =====================================================
