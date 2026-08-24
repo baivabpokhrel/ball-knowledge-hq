@@ -616,7 +616,43 @@
   </div>
 
 
-  <script src="/app.js?v=45"></script>
+  <!-- ==================================================
+       "WHAT IF" SCENARIO SHEET (Compare mode - tap a
+       still-to-play player to simulate real FPL points)
+  =================================================== -->
+
+  <div
+    id="scenarioSheet"
+    class="player-info-sheet"
+    hidden
+  >
+
+    <div
+      class="player-info-backdrop"
+      data-close-scenario-sheet
+    ></div>
+
+
+    <div class="player-info-content">
+
+      <button
+        id="closeScenarioSheet"
+        class="player-info-close"
+        type="button"
+        data-close-scenario-sheet
+      >
+        ✕
+      </button>
+
+
+      <div id="scenarioBody"></div>
+
+    </div>
+
+  </div>
+
+
+  <script src="/app.js?v=46"></script>
 
 </body>
 

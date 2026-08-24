@@ -101,6 +101,26 @@ let compareEntry =
 
 
 /*
+  "What if" scenario state for the Compare screen's real-
+  points simulator - keyed by "entryId:playerId". Only
+  created once a user actually changes a control away from
+  its untouched default (see isScenarioMeaningful), so a
+  player nobody has tapped never contributes any points.
+  Persists for the session so switching opponents doesn't
+  lose what you've already set up.
+*/
+
+let compareScenarios =
+  {};
+
+let activeScenarioEntry =
+  null;
+
+let activeScenarioPlayerId =
+  null;
+
+
+/*
   Real-world fixtures/results for the current Gameweek -
   independent of any manager's squad.
 */
@@ -2764,18 +2784,128 @@ function renderSelectedSquad() {
    SQUAD COMPARISON ("Compare" mode on the Squads tab)
 
    Head-to-head for the current Gameweek only (squadsData
-   never holds a past GW's picks): each side's points
-   already locked in vs what's realistically still up for
-   grabs from players who haven't finished yet, using the
-   same blended predictedContribution the rest of the app
-   already relies on (actual points once a player's match
-   has started, FPL's own projection until then).
+   never holds a past GW's picks). Points already locked in
+   (live or finished players) are always real - FPL's own
+   live event points, nothing predictive. Points from a
+   player who hasn't started yet are NEVER guessed at with
+   an expected-points/form-style stat - instead the user
+   picks an explicit scenario for that player (a goal, an
+   assist, a clean sheet, a defensive contribution, bonus
+   points) and the simulator adds up exactly what the real
+   FPL scoring rules award for it. Nothing here is a
+   prediction; every number is either already-earned or
+   something the person chose to test out.
 ===================================================== */
+
+/*
+  Real FPL point values (2025/26 rules). This is the entire
+  scoring engine behind the "what if" simulator - no
+  expected-goals/expected-points/form inputs anywhere here.
+*/
+
+const GOAL_POINTS = { GKP: 10, DEF: 6, MID: 5, FWD: 4 };
+const CLEAN_SHEET_POINTS = { GKP: 4, DEF: 4, MID: 1, FWD: 0 };
+const ASSIST_POINTS = 3;
+const DEFENSIVE_CONTRIBUTION_POINTS = 2;
+const APPEARANCE_POINTS = { none: 0, sub: 1, full: 2 };
+
+function cleanSheetEligible(position) {
+  return position !== 'FWD';
+}
+
+function defensiveContributionEligible(position) {
+  return position === 'DEF' || position === 'MID' || position === 'FWD';
+}
+
+function emptyScenario() {
+  return {
+    appearance: 'full',
+    goals: 0,
+    assists: 0,
+    cleanSheet: false,
+    defCon: false,
+    bonus: 0
+  };
+}
+
+/*
+  A scenario only "counts" once it differs from the
+  untouched default (assumed to play 60+ minutes, nothing
+  else) - so opening the sheet and closing it again without
+  changing anything never adds phantom points anywhere.
+*/
+
+function isScenarioMeaningful(scenario) {
+  return !!scenario && (
+    scenario.appearance !== 'full' ||
+    scenario.goals > 0 ||
+    scenario.assists > 0 ||
+    scenario.cleanSheet ||
+    scenario.defCon ||
+    scenario.bonus > 0
+  );
+}
+
+function scenarioRawPoints(position, scenario) {
+
+  if (!scenario) {
+    return 0;
+  }
+
+  const goalValue = GOAL_POINTS[position] || GOAL_POINTS.FWD;
+  const csValue = CLEAN_SHEET_POINTS[position] ?? 0;
+
+  return (
+    (APPEARANCE_POINTS[scenario.appearance] ?? 0) +
+    scenario.goals * goalValue +
+    scenario.assists * ASSIST_POINTS +
+    (scenario.cleanSheet ? csValue : 0) +
+    (scenario.defCon ? DEFENSIVE_CONTRIBUTION_POINTS : 0) +
+    scenario.bonus
+  );
+
+}
+
+function scenarioKey(entryId, playerId) {
+  return `${entryId}:${playerId}`;
+}
+
+/*
+  Total simulated points a side's still-to-play players
+  would add, counting only players someone has actually set
+  a scenario for (captain/chip multiplier applied, same as
+  everywhere else in the app).
+*/
+
+function sumScenarioPoints(entryId, players) {
+
+  return players.reduce(
+    (sum, player) => {
+
+      const scenario =
+        compareScenarios[scenarioKey(entryId, player.id)];
+
+      if (!isScenarioMeaningful(scenario)) {
+        return sum;
+      }
+
+      return (
+        sum +
+        scenarioRawPoints(player.position, scenario) *
+          (player.multiplier || 1)
+      );
+
+    },
+    0
+  );
+
+}
 
 /*
   Splits a squad's counting players (Starting XI, plus the
   bench too if Bench Boost is active) into what's already
-  locked in (live or finished) vs what's still to play.
+  locked in (live or finished - real points) vs what's
+  still to play.
 */
 
 function squadCompareBreakdown(squad) {
@@ -2802,15 +2932,14 @@ function squadCompareBreakdown(squad) {
       player => player.status !== 'upcoming'
     );
 
+  /*
+    predictedContribution for a LOCKED player is always real -
+    api/squads.js only falls back to FPL's projection for a
+    player whose match hasn't started yet, and by definition
+    every player here has (status is 'live' or 'final').
+  */
   const lockedPoints =
     locked.reduce(
-      (sum, player) =>
-        sum + (player.predictedContribution || 0),
-      0
-    );
-
-  const projectedRemaining =
-    toPlay.reduce(
       (sum, player) =>
         sum + (player.predictedContribution || 0),
       0
@@ -2820,9 +2949,7 @@ function squadCompareBreakdown(squad) {
     counting,
     locked,
     toPlay,
-    lockedPoints,
-    projectedRemaining,
-    total: squad.predictedTotal
+    lockedPoints
   };
 
 }
@@ -2875,13 +3002,28 @@ function ordinal(n) {
 
 
 /*
-  One compact line per still-to-play player: projected
-  points plus a "realistic" read on them - recent form,
-  season goals/assists, and an injury-doubt flag when FPL
-  itself is uncertain they'll even feature.
+  One compact line per still-to-play player. No projected/
+  expected-points number is ever shown here - only an
+  injury-doubt flag (FPL's own doubt on whether they'll even
+  feature) and, once the person has tapped in a scenario for
+  this player, the real points that scenario is worth.
 */
 
-function comparePlayerRow(player) {
+function comparePlayerRow(player, entryId) {
+
+  const scenario =
+    compareScenarios[scenarioKey(entryId, player.id)];
+
+  const meaningful =
+    isScenarioMeaningful(scenario);
+
+  const simPoints =
+    meaningful
+      ? Math.round(
+          scenarioRawPoints(player.position, scenario) *
+            (player.multiplier || 1)
+        )
+      : null;
 
   const doubt =
     player.chanceOfPlaying != null &&
@@ -2890,7 +3032,11 @@ function comparePlayerRow(player) {
       : '';
 
   return `
-    <div class="compare-player-row">
+    <div
+      class="compare-player-row"
+      data-scenario-entry="${entryId}"
+      data-scenario-player="${player.id}"
+    >
 
       <div class="compare-player-name">
         ${statusDot(player.status)}
@@ -2900,11 +3046,11 @@ function comparePlayerRow(player) {
       </div>
 
       <div class="compare-player-stats">
-        <strong>${player.predictedContribution.toFixed(1)} proj</strong>
-        <small>
-          Form ${player.form.toFixed(1)} &middot;
-          ${player.goals}G ${player.assists}A
-        </small>
+        ${
+          meaningful
+            ? `<strong class="compare-sim-applied">${simPoints} pts if this happens</strong>`
+            : `<strong class="compare-sim-cta">🎯 What if?</strong>`
+        }
         ${doubt}
       </div>
 
@@ -2914,10 +3060,13 @@ function comparePlayerRow(player) {
 }
 
 
-function compareSideSummary(label, manager, squad, breakdown) {
+function compareSideSummary(label, manager, breakdown, simulated) {
 
   const rank =
     weeklyRankFor(manager.entryId);
+
+  const total =
+    breakdown.lockedPoints + (simulated || 0);
 
   return `
     <div class="compare-side-summary">
@@ -2938,16 +3087,17 @@ function compareSideSummary(label, manager, squad, breakdown) {
       <small>${escapeHtml(manager.team)}</small>
 
       <div class="compare-side-points">
-        <strong>${breakdown.total.toFixed(1)}</strong>
-        <small>projected total</small>
+        <strong>${Math.round(total)}</strong>
+        <small>${simulated ? 'pts incl. simulated' : 'pts locked in'}</small>
       </div>
 
       <p class="compare-side-detail">
-        ${breakdown.lockedPoints.toFixed(1)} pts locked in
+        ${breakdown.lockedPoints.toFixed(0)} locked in
+        ${simulated ? ` &middot; +${Math.round(simulated)} simulated` : ''}
         &middot;
         ${
           breakdown.toPlay.length
-            ? `${breakdown.projectedRemaining.toFixed(1)} pts projected from ${breakdown.toPlay.length} to play`
+            ? `${breakdown.toPlay.length} still to play`
             : 'nobody left to play'
         }
       </p>
@@ -3034,35 +3184,91 @@ function renderSquadComparison() {
     squadCompareBreakdown(theirSquad);
 
 
-  const gap =
-    theirs.total - mine.total;
+  const mySimulated =
+    sumScenarioPoints(Number(selectedSquadEntry), mine.toPlay);
 
-  const bothStillHaveUpside =
+  const theirSimulated =
+    sumScenarioPoints(Number(compareEntry), theirs.toPlay);
+
+  const myTotal =
+    mine.lockedPoints + mySimulated;
+
+  const theirTotal =
+    theirs.lockedPoints + theirSimulated;
+
+  const gap =
+    theirTotal - myTotal;
+
+  const anyoneStillToPlay =
     mine.toPlay.length > 0 ||
     theirs.toPlay.length > 0;
 
+  const anyScenarioApplied =
+    mine.toPlay.some(
+      player =>
+        isScenarioMeaningful(
+          compareScenarios[scenarioKey(selectedSquadEntry, player.id)]
+        )
+    ) ||
+    theirs.toPlay.some(
+      player =>
+        isScenarioMeaningful(
+          compareScenarios[scenarioKey(compareEntry, player.id)]
+        )
+    );
+
+
+  /*
+    Three distinct framings, none of them a prediction:
+    - Nobody left to play -> this IS the final result.
+    - Someone's still to play, nothing simulated yet -> just
+      report the real, already-locked-in gap and invite the
+      person to tap a player and simulate something.
+    - Someone's still to play, and a scenario's been set ->
+      report what THAT scenario (their choice, not ours)
+      would mean.
+  */
 
   let verdict;
+  let icon;
 
-  if (Math.abs(gap) < 0.05) {
+  if (!anyoneStillToPlay) {
 
-    verdict =
-      "You're projected to finish level.";
-
-  } else if (gap < 0) {
-
-    verdict =
-      `You're projected to finish ${Math.abs(gap).toFixed(1)} pts ahead of ${escapeHtml(theirManager.manager)}.`;
-
-  } else if (!bothStillHaveUpside) {
+    icon =
+      Math.abs(gap) < 0.05 ? '🤝' : gap < 0 ? '🏆' : '⚔️';
 
     verdict =
-      `${escapeHtml(theirManager.manager)} finishes ${gap.toFixed(1)} pts ahead - nobody's left to play.`;
+      Math.abs(gap) < 0.05
+        ? `It's final - you and ${escapeHtml(theirManager.manager)} finish level on ${Math.round(myTotal)} pts.`
+        : gap < 0
+          ? `Final result: you beat ${escapeHtml(theirManager.manager)} by ${Math.round(Math.abs(gap))} pts.`
+          : `Final result: ${escapeHtml(theirManager.manager)} beat you by ${Math.round(gap)} pts.`;
+
+  } else if (!anyScenarioApplied) {
+
+    icon = '🧮';
+
+    const lockedGap =
+      theirs.lockedPoints - mine.lockedPoints;
+
+    verdict =
+      Math.abs(lockedGap) < 0.05
+        ? `Locked in, you're level with ${escapeHtml(theirManager.manager)}. You have ${mine.toPlay.length} player${mine.toPlay.length === 1 ? '' : 's'} left to play, they have ${theirs.toPlay.length}. Tap a player below to simulate a goal, assist, clean sheet, defensive contribution, or bonus.`
+        : lockedGap < 0
+          ? `Locked in, you're ${Math.round(Math.abs(lockedGap))} pts ahead of ${escapeHtml(theirManager.manager)} - ${mine.toPlay.length} of your players and ${theirs.toPlay.length} of theirs are still to play. Tap a player below to simulate what happens next.`
+          : `Locked in, ${escapeHtml(theirManager.manager)} is ${Math.round(lockedGap)} pts ahead - ${mine.toPlay.length} of your players and ${theirs.toPlay.length} of theirs are still to play. Tap a player below to simulate what happens next.`;
 
   } else {
 
+    icon =
+      gap <= 0 ? '📈' : '⚔️';
+
     verdict =
-      `You need your remaining players to outscore ${escapeHtml(theirManager.manager)}'s by ${gap.toFixed(1)}+ combined to catch up.`;
+      Math.abs(gap) < 0.05
+        ? `If this plays out, you and ${escapeHtml(theirManager.manager)} finish level.`
+        : gap < 0
+          ? `If this plays out, you finish ${Math.round(Math.abs(gap))} pts ahead of ${escapeHtml(theirManager.manager)}.`
+          : `If this plays out, ${escapeHtml(theirManager.manager)} finishes ${Math.round(gap)} pts ahead of you.`;
 
   }
 
@@ -3071,14 +3277,14 @@ function renderSquadComparison() {
 
     <div class="compare-verdict-card">
       <span class="compare-verdict-icon">
-        ${gap <= 0 ? '📈' : '⚔️'}
+        ${icon}
       </span>
       <p>${verdict}</p>
     </div>
 
     <div class="compare-sides">
-      ${compareSideSummary('YOU', myManager, mySquad, mine)}
-      ${compareSideSummary('THEM', theirManager, theirSquad, theirs)}
+      ${compareSideSummary('YOU', myManager, mine, mySimulated)}
+      ${compareSideSummary('THEM', theirManager, theirs, theirSimulated)}
     </div>
 
     ${
@@ -3088,7 +3294,7 @@ function renderSquadComparison() {
             <h3>Your remaining players</h3>
           </div>
           <div class="compare-player-list">
-            ${mine.toPlay.map(comparePlayerRow).join('')}
+            ${mine.toPlay.map(player => comparePlayerRow(player, selectedSquadEntry)).join('')}
           </div>
         `
         : ''
@@ -3101,11 +3307,363 @@ function renderSquadComparison() {
             <h3>${escapeHtml(theirManager.manager)}'s remaining players</h3>
           </div>
           <div class="compare-player-list">
-            ${theirs.toPlay.map(comparePlayerRow).join('')}
+            ${theirs.toPlay.map(player => comparePlayerRow(player, compareEntry)).join('')}
           </div>
         `
         : ''
     }
+
+    ${
+      anyScenarioApplied
+        ? `
+          <button type="button" class="scenario-reset-all" data-reset-all-scenarios>
+            ↺ Reset all simulations
+          </button>
+        `
+        : ''
+    }
+
+  `;
+
+}
+
+
+/* =====================================================
+   "WHAT IF" SCENARIO SHEET
+
+   A bottom sheet (same chrome as the player-ownership
+   sheet) for one still-to-play player at a time. Every
+   control is an explicit, real FPL scoring category the
+   person picks themselves - minutes played, goals,
+   assists, clean sheet, defensive contribution, bonus -
+   and the sheet just adds up what the official rules pay
+   for that combination. There is no expected-goals, form,
+   or projection input anywhere in here.
+===================================================== */
+
+function findSquadPlayer(entryId, playerId) {
+
+  const squad =
+    squadFor(entryId);
+
+  if (!squad) {
+    return null;
+  }
+
+  return (
+    [
+      ...(squad.startingXI || []),
+      ...(squad.bench || [])
+    ].find(
+      player =>
+        Number(player.id) === Number(playerId)
+    ) || null
+  );
+
+}
+
+
+function openScenarioSheet(entryId, playerId) {
+
+  const player =
+    findSquadPlayer(entryId, playerId);
+
+  if (!player || !$('scenarioSheet')) {
+    return;
+  }
+
+  activeScenarioEntry = entryId;
+  activeScenarioPlayerId = playerId;
+
+  renderScenarioSheet();
+
+  $('scenarioSheet').hidden = false;
+
+}
+
+
+function closeScenarioSheet() {
+
+  if ($('scenarioSheet')) {
+    $('scenarioSheet').hidden = true;
+  }
+
+  activeScenarioEntry = null;
+  activeScenarioPlayerId = null;
+
+}
+
+
+function activeScenarioKey() {
+
+  return (
+    activeScenarioEntry != null &&
+    activeScenarioPlayerId != null
+  )
+    ? scenarioKey(activeScenarioEntry, activeScenarioPlayerId)
+    : null;
+
+}
+
+
+function ensureActiveScenario() {
+
+  const key =
+    activeScenarioKey();
+
+  if (!key) {
+    return null;
+  }
+
+  if (!compareScenarios[key]) {
+    compareScenarios[key] = emptyScenario();
+  }
+
+  return key;
+
+}
+
+
+function setScenarioField(field, value) {
+
+  const key =
+    ensureActiveScenario();
+
+  if (!key) {
+    return;
+  }
+
+  compareScenarios[key][field] = value;
+
+  renderScenarioSheet();
+  renderSquadComparison();
+
+}
+
+
+function stepScenarioField(field, delta) {
+
+  const key =
+    ensureActiveScenario();
+
+  if (!key) {
+    return;
+  }
+
+  const max =
+    field === 'assists' || field === 'bonus'
+      ? 3
+      : 5;
+
+  compareScenarios[key][field] =
+    Math.max(
+      0,
+      Math.min(
+        max,
+        (compareScenarios[key][field] || 0) + delta
+      )
+    );
+
+  renderScenarioSheet();
+  renderSquadComparison();
+
+}
+
+
+function toggleScenarioField(field) {
+
+  const key =
+    ensureActiveScenario();
+
+  if (!key) {
+    return;
+  }
+
+  compareScenarios[key][field] =
+    !compareScenarios[key][field];
+
+  renderScenarioSheet();
+  renderSquadComparison();
+
+}
+
+
+function resetActiveScenario() {
+
+  const key =
+    activeScenarioKey();
+
+  if (key) {
+    delete compareScenarios[key];
+  }
+
+  renderScenarioSheet();
+  renderSquadComparison();
+
+}
+
+
+function renderScenarioSheet() {
+
+  if (
+    !$('scenarioBody') ||
+    activeScenarioEntry == null ||
+    activeScenarioPlayerId == null
+  ) {
+    return;
+  }
+
+  const player =
+    findSquadPlayer(activeScenarioEntry, activeScenarioPlayerId);
+
+  if (!player) {
+    closeScenarioSheet();
+    return;
+  }
+
+  const scenario =
+    compareScenarios[scenarioKey(activeScenarioEntry, activeScenarioPlayerId)] ||
+    emptyScenario();
+
+  $('scenarioBody').innerHTML =
+    buildScenarioSheetHtml(player, scenario);
+
+}
+
+
+function scenarioSegment(field, value, current, label) {
+
+  return `
+    <button
+      type="button"
+      class="scenario-segment ${current === value ? 'active' : ''}"
+      data-scenario-field="${field}"
+      data-value="${value}"
+    >
+      ${label}
+    </button>
+  `;
+
+}
+
+
+function scenarioStepper(field, value, label) {
+
+  return `
+    <div class="scenario-control-group">
+      <p class="scenario-control-label">${label}</p>
+      <div class="scenario-stepper" data-scenario-field="${field}">
+        <button type="button" class="scenario-step" data-step="-1">−</button>
+        <strong>${value}${field === 'goals' && value >= 3 ? ' 🎩' : ''}</strong>
+        <button type="button" class="scenario-step" data-step="1">+</button>
+      </div>
+    </div>
+  `;
+
+}
+
+
+function buildScenarioSheetHtml(player, scenario) {
+
+  const goalValue =
+    GOAL_POINTS[player.position] || GOAL_POINTS.FWD;
+
+  const csValue =
+    CLEAN_SHEET_POINTS[player.position] ?? 0;
+
+  const raw =
+    scenarioRawPoints(player.position, scenario);
+
+  const multiplier =
+    player.multiplier || 1;
+
+  const final =
+    Math.round(raw * multiplier);
+
+  return `
+
+    <div class="scenario-sheet-header">
+      <h3>
+        ${escapeHtml(player.name)}
+        ${player.isCaptain ? '<span class="pitch-armband-inline">C</span>' : ''}
+      </h3>
+      <small>
+        ${escapeHtml(player.team)} &middot; ${escapeHtml(player.position)}
+        ${multiplier > 1 ? ` &middot; captain - points ×${multiplier}` : ''}
+      </small>
+    </div>
+
+    <p class="scenario-season-note">
+      This season: ${player.goals}G ${player.assists}A &middot;
+      ${player.cleanSheets} clean sheet${player.cleanSheets === 1 ? '' : 's'} &middot;
+      ${player.bonus} bonus pts
+    </p>
+
+    <div class="scenario-control-group">
+      <p class="scenario-control-label">Minutes played</p>
+      <div class="scenario-segmented" data-scenario-field="appearance">
+        ${scenarioSegment('appearance', 'none', scenario.appearance, "Didn't play")}
+        ${scenarioSegment('appearance', 'sub', scenario.appearance, 'Sub (1pt)')}
+        ${scenarioSegment('appearance', 'full', scenario.appearance, '60+ mins (2pts)')}
+      </div>
+    </div>
+
+    ${scenarioStepper('goals', scenario.goals, `Goals (${goalValue} pts each for a ${escapeHtml(player.position)})`)}
+
+    ${scenarioStepper('assists', scenario.assists, `Assists (${ASSIST_POINTS} pts each)`)}
+
+    ${
+      cleanSheetEligible(player.position)
+        ? `
+          <div class="scenario-control-group">
+            <p class="scenario-control-label">Clean sheet (${csValue} pts)</p>
+            <button
+              type="button"
+              class="scenario-toggle ${scenario.cleanSheet ? 'active' : ''}"
+              data-scenario-field="cleanSheet"
+            >
+              ${scenario.cleanSheet ? '✓ Yes' : 'No'}
+            </button>
+          </div>
+        `
+        : ''
+    }
+
+    ${
+      defensiveContributionEligible(player.position)
+        ? `
+          <div class="scenario-control-group">
+            <p class="scenario-control-label">
+              Defensive contribution (${DEFENSIVE_CONTRIBUTION_POINTS} pts)
+            </p>
+            <button
+              type="button"
+              class="scenario-toggle ${scenario.defCon ? 'active' : ''}"
+              data-scenario-field="defCon"
+            >
+              ${scenario.defCon ? '✓ Yes' : 'No'}
+            </button>
+            <small>
+              ${player.position === 'DEF' ? '10+ tackles/interceptions/clearances/blocks' : '12+ of the above plus recoveries'}
+            </small>
+          </div>
+        `
+        : ''
+    }
+
+    ${scenarioStepper('bonus', scenario.bonus, 'Bonus points')}
+
+    <div class="scenario-total">
+      <span>Real points if this happens</span>
+      <strong>
+        ${final}
+        ${multiplier > 1 ? ` <small>(${raw} × ${multiplier})</small>` : ''}
+      </strong>
+    </div>
+
+    <button type="button" class="scenario-reset" data-scenario-reset>
+      Reset this player
+    </button>
 
   `;
 
@@ -6405,6 +6963,32 @@ if ($('squadDetail')) {
       'click',
       event => {
 
+        const resetAll =
+          event.target.closest(
+            '[data-reset-all-scenarios]'
+          );
+
+        if (resetAll) {
+          compareScenarios = {};
+          renderSquadComparison();
+          return;
+        }
+
+
+        const scenarioRow =
+          event.target.closest(
+            '[data-scenario-entry]'
+          );
+
+        if (scenarioRow) {
+          openScenarioSheet(
+            Number(scenarioRow.dataset.scenarioEntry),
+            Number(scenarioRow.dataset.scenarioPlayer)
+          );
+          return;
+        }
+
+
         const card =
           event.target.closest(
             '[data-player-id]'
@@ -6440,6 +7024,80 @@ document
 
     }
   );
+
+
+/* =====================================================
+   "WHAT IF" SCENARIO SHEET CONTROLS
+===================================================== */
+
+if ($('scenarioSheet')) {
+
+  $('scenarioSheet')
+    .addEventListener(
+      'click',
+      event => {
+
+        if (event.target.closest('[data-close-scenario-sheet]')) {
+          closeScenarioSheet();
+          return;
+        }
+
+
+        if (event.target.closest('[data-scenario-reset]')) {
+          resetActiveScenario();
+          return;
+        }
+
+
+        const segment =
+          event.target.closest(
+            '.scenario-segment[data-scenario-field]'
+          );
+
+        if (segment) {
+          setScenarioField(
+            segment.dataset.scenarioField,
+            segment.dataset.value
+          );
+          return;
+        }
+
+
+        const step =
+          event.target.closest(
+            '.scenario-step[data-step]'
+          );
+
+        if (step) {
+          const group =
+            step.closest('[data-scenario-field]');
+
+          if (group) {
+            stepScenarioField(
+              group.dataset.scenarioField,
+              Number(step.dataset.step)
+            );
+          }
+          return;
+        }
+
+
+        const toggle =
+          event.target.closest(
+            '.scenario-toggle[data-scenario-field]'
+          );
+
+        if (toggle) {
+          toggleScenarioField(
+            toggle.dataset.scenarioField
+          );
+          return;
+        }
+
+      }
+    );
+
+}
 
 
 /* =====================================================

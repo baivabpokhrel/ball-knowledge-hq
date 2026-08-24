@@ -2503,6 +2503,8 @@ p {
   border-radius: 14px;
 
   background: var(--surface);
+
+  cursor: pointer;
 }
 
 
@@ -2589,12 +2591,270 @@ p {
 }
 
 
+.compare-sim-cta {
+  color: var(--muted);
+
+  font-size: 11px !important;
+  font-weight: 800;
+}
+
+
+.compare-sim-applied {
+  color: var(--gold);
+
+  font-size: 12px !important;
+}
+
+
+.scenario-reset-all {
+  display: block;
+
+  width: 100%;
+
+  margin-top: 14px;
+  padding: 10px;
+
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+
+  background: transparent;
+
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 800;
+
+  text-align: center;
+}
+
+
 @media (max-width: 420px) {
 
   .compare-sides {
     grid-template-columns: 1fr;
   }
 
+}
+
+
+/* =====================================================
+   "WHAT IF" SCENARIO SHEET CONTENT
+   (chrome/backdrop reused from .player-info-sheet)
+===================================================== */
+
+.scenario-sheet-header h3 {
+  display: flex;
+
+  align-items: center;
+
+  margin: 0 0 3px;
+
+  font-size: 16px;
+}
+
+
+.scenario-sheet-header small {
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+.scenario-season-note {
+  margin: 10px 0 16px;
+  padding: 8px 12px;
+
+  border-radius: 10px;
+
+  background: var(--surface);
+
+  color: var(--muted);
+
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+
+.scenario-control-group {
+  margin-bottom: 16px;
+}
+
+
+.scenario-control-label {
+  margin: 0 0 6px;
+
+  color: var(--muted);
+
+  font-size: 10.5px;
+  font-weight: 800;
+
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+
+.scenario-control-group > small {
+  display: block;
+
+  margin-top: 4px;
+
+  color: var(--muted);
+
+  font-size: 9px;
+  font-weight: 600;
+}
+
+
+.scenario-segmented {
+  display: flex;
+
+  gap: 6px;
+}
+
+
+.scenario-segment {
+  flex: 1 0 auto;
+
+  padding: 9px 6px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: var(--surface);
+
+  color: var(--text);
+
+  font-size: 10.5px;
+  font-weight: 800;
+
+  text-align: center;
+}
+
+
+.scenario-segment.active {
+  border-color: var(--gold);
+  background: var(--gold);
+
+  color: #1a1400;
+}
+
+
+.scenario-stepper {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 4px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: var(--surface);
+}
+
+
+.scenario-stepper strong {
+  font-size: 15px;
+}
+
+
+.scenario-step {
+  width: 36px;
+  height: 36px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: var(--surface-2);
+
+  color: var(--text);
+
+  font-size: 18px;
+  font-weight: 900;
+}
+
+
+.scenario-toggle {
+  width: 100%;
+
+  padding: 10px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: var(--surface);
+
+  color: var(--text);
+
+  font-size: 12px;
+  font-weight: 800;
+
+  text-align: center;
+}
+
+
+.scenario-toggle.active {
+  border-color: var(--green);
+  background: var(--green);
+
+  color: #06210f;
+}
+
+
+.scenario-total {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+
+  border-radius: 12px;
+
+  background: var(--gold);
+
+  color: #1a1400;
+}
+
+
+.scenario-total span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+.scenario-total strong {
+  font-size: 20px;
+}
+
+
+.scenario-total strong small {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+
+.scenario-reset {
+  display: block;
+
+  width: 100%;
+
+  padding: 10px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 800;
+
+  text-align: center;
 }
 
 
