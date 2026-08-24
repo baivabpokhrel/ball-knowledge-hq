@@ -177,13 +177,45 @@ export default async function handler(req, res) {
             const liveEntry = liveById.get(element.id);
             const explain = liveEntry?.explain || [];
 
-            const featured = explain.some(
+            const matchExplain = explain.find(
               entry => entry.fixture === fixture.id
             );
 
-            if (!featured) {
+            if (!matchExplain) {
               return null;
             }
+
+            /*
+              FPL ties EVERY named-squad player to the fixture
+              via an explain entry, including an unused substitute
+              who never left the bench (0 minutes, 0 of everything)
+              - so "has an explain entry" alone is NOT the same as
+              "actually played", which was making the whole bench
+              show up as "substitutes used". Real involvement means
+              minutes played in THIS fixture specifically (the
+              per-fixture value, not the Gameweek-level total, so a
+              double-Gameweek player's other match doesn't leak in
+              here).
+            */
+
+            const minutesStat = (matchExplain.stats || []).find(
+              stat => stat.identifier === 'minutes'
+            );
+
+            const minutesPlayed = Number(minutesStat?.value || 0);
+
+            if (minutesPlayed <= 0) {
+              return null;
+            }
+
+            const startsStat = (matchExplain.stats || []).find(
+              stat => stat.identifier === 'starts'
+            );
+
+            const started =
+              startsStat
+                ? Number(startsStat.value || 0) > 0
+                : (liveEntry?.stats?.starts ?? 0) > 0;
 
             const type = typesById.get(element.element_type);
 
@@ -191,7 +223,7 @@ export default async function handler(req, res) {
               id: element.id,
               name: element.web_name,
               position: type?.singular_name_short || '',
-              started: (liveEntry?.stats?.starts ?? 0) > 0
+              started
             };
           })
           .filter(Boolean)
