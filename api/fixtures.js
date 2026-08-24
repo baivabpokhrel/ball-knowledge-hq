@@ -41,9 +41,19 @@ async function getJson(url) {
 
   Real-world Premier League fixtures/results for one
   Gameweek - kickoff time, teams, and (once a match has
-  kicked off) the live or final score. Independent of
-  any manager's squad, so this is cheap and cacheable
-  compared to /api/squads.
+  kicked off) the live or final score, plus per-match
+  detail once there's anything to show:
+
+    - events: who scored/assisted/was booked/etc, resolved
+      from FPL's own per-fixture "stats" breakdown (real
+      match data, not a fantasy projection).
+    - lineups: best-effort "who actually featured" per side,
+      derived from event/{gw}/live/ once the match has
+      kicked off. FPL's API has no pre-match team-news feed,
+      so there is no way to show an official lineup
+      "confirmed ~60 minutes before kickoff" - this instead
+      becomes available from kickoff onward, which is the
+      real data FPL's API actually exposes.
   ===================================================
 */
 
@@ -55,14 +65,145 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [bootstrap, fixtures] = await Promise.all([
+    const [bootstrap, fixtures, live] = await Promise.all([
       getJson(`${FPL}/bootstrap-static/`),
-      getJson(`${FPL}/fixtures/?event=${gw}`)
+      getJson(`${FPL}/fixtures/?event=${gw}`),
+      // Only exists to build lineups - degrade gracefully
+      // (no lineups, everything else unaffected) if it fails.
+      getJson(`${FPL}/event/${gw}/live/`).catch(() => null)
     ]);
 
     const teamsById = new Map(
       (bootstrap.teams || []).map(team => [team.id, team])
     );
+
+    const elementsById = new Map(
+      (bootstrap.elements || []).map(element => [element.id, element])
+    );
+
+    const typesById = new Map(
+      (bootstrap.element_types || []).map(type => [type.id, type])
+    );
+
+    const liveById = new Map(
+      (live?.elements || []).map(entry => [entry.id, entry])
+    );
+
+    function playerLabel(elementId) {
+      const element = elementsById.get(elementId);
+      const type = element ? typesById.get(element.element_type) : null;
+
+      return {
+        id: elementId,
+        name: element?.web_name || 'Unknown',
+        position: type?.singular_name_short || ''
+      };
+    }
+
+    /*
+      One fixture's raw "stats" array (goals_scored, assists,
+      own_goals, penalties_saved, penalties_missed,
+      yellow_cards, red_cards, saves, bonus,
+      defensive_contribution) turned into readable per-player
+      lists, resolved to names and tagged with which side
+      ('h'/'a') they're on.
+    */
+    function eventsFor(fixture, status) {
+
+      const byIdentifier = new Map(
+        (fixture.stats || []).map(stat => [stat.identifier, stat])
+      );
+
+      function listFor(identifier) {
+        const stat = byIdentifier.get(identifier);
+
+        if (!stat) {
+          return [];
+        }
+
+        const home = (stat.h || []).map(entry => ({
+          ...playerLabel(entry.element),
+          team: 'h',
+          value: entry.value
+        }));
+
+        const away = (stat.a || []).map(entry => ({
+          ...playerLabel(entry.element),
+          team: 'a',
+          value: entry.value
+        }));
+
+        return [...home, ...away];
+      }
+
+      return {
+        scorers: listFor('goals_scored'),
+        assists: listFor('assists'),
+        ownGoals: listFor('own_goals'),
+        yellowCards: listFor('yellow_cards'),
+        redCards: listFor('red_cards'),
+        penaltiesMissed: listFor('penalties_missed'),
+        penaltiesSaved: listFor('penalties_saved'),
+        saves: listFor('saves'),
+        defensiveContributions: listFor('defensive_contribution'),
+        bonus: listFor('bonus'),
+        // Bonus (and BPS-derived stats) can still move until
+        // FPL fully data-checks the Gameweek - flag whether
+        // what's shown is provisional or the final word.
+        bonusFinal: status === 'final'
+      };
+
+    }
+
+    /*
+      Best-effort "who actually featured" per side, derived
+      from event/{gw}/live/'s per-player explain data (each
+      entry ties to a specific real fixture id) rather than
+      any pre-match lineup feed, which FPL's API doesn't
+      provide. "started" uses that player's Gameweek-level
+      starts flag, which is only ambiguous in the rare case
+      their team plays twice in the same Gameweek.
+    */
+    function lineupFor(fixture) {
+
+      if (!live || !fixture.started) {
+        return null;
+      }
+
+      function teamLineup(teamId) {
+        return (bootstrap.elements || [])
+          .filter(element => element.team === teamId)
+          .map(element => {
+            const liveEntry = liveById.get(element.id);
+            const explain = liveEntry?.explain || [];
+
+            const featured = explain.some(
+              entry => entry.fixture === fixture.id
+            );
+
+            if (!featured) {
+              return null;
+            }
+
+            const type = typesById.get(element.element_type);
+
+            return {
+              id: element.id,
+              name: element.web_name,
+              position: type?.singular_name_short || '',
+              started: (liveEntry?.stats?.starts ?? 0) > 0
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => Number(b.started) - Number(a.started));
+      }
+
+      return {
+        home: teamLineup(fixture.team_h),
+        away: teamLineup(fixture.team_a)
+      };
+
+    }
 
     const rows = (Array.isArray(fixtures) ? fixtures : [])
       .slice()
@@ -97,7 +238,12 @@ export default async function handler(req, res) {
             status === 'upcoming'
               ? null
               : fixture.team_a_score ?? 0,
-          status
+          status,
+          events:
+            status === 'upcoming'
+              ? null
+              : eventsFor(fixture, status),
+          lineups: lineupFor(fixture)
         };
       });
 

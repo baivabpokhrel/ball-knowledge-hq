@@ -51,6 +51,182 @@ function chipLabel(code) {
 }
 
 /*
+  A player is "out" for auto-substitution/captaincy-fallback
+  purposes once their match has finished AND they recorded 0
+  minutes that Gameweek - FPL's own trigger for both mechanisms.
+  A player whose match is still LIVE is never treated as out
+  here, even at 0 minutes so far, since they could still be
+  brought on before full time.
+*/
+function isPlayerOut(player) {
+  return player.status === 'final' && player.minutes === 0;
+}
+
+/*
+  Real FPL auto-substitutions: if a starting-XI player records
+  0 minutes once their match is finished, they're swapped out
+  for a bench player in the manager's own bench-priority order,
+  skipping anyone who'd break a valid formation (1 GKP; 3-5 DEF;
+  2-5 MID; 1-3 FWD) or who is themselves "out". The reserve
+  goalkeeper (always bench slot 12) can only ever replace the
+  starting goalkeeper - never an outfield player, and no outfield
+  bench player ever replaces the goalkeeper.
+
+  Independently, if the captain is "out", the double (or, with
+  Triple Captain active, triple) points move to the vice-captain
+  - provided the vice-captain isn't ALSO out, in which case
+  nobody's score is doubled that Gameweek. This is evaluated
+  separately from the substitution logic above (a captain can
+  lose the armband to the vice-captain whether or not they were
+  also auto-subbed out of the XI).
+
+  Mutates each pick's `multiplier` in place and returns what
+  happened, for the UI to explain the final scores.
+*/
+function applyAutoSubsAndCaptaincy(picks, activeChip) {
+
+  const autoSubs = [];
+  let captainFallback = null;
+
+  const startingXI = picks.filter(player => player.slot <= 11);
+  const bench = picks
+    .filter(player => player.slot > 11)
+    .sort((a, b) => a.slot - b.slot);
+
+  const benchGoalkeeper = bench[0] || null;
+  const benchOutfield = bench.slice(1);
+
+  /*
+    Bench Boost already counts all 15 players (every bench spot
+    is forced to multiplier 1 above), so there's nothing to
+    substitute - a 0-minute bench player under Bench Boost is
+    just a bench player contributing 0, exactly as FPL treats it.
+  */
+  if (activeChip !== 'bboost') {
+
+    const startingGoalkeeper =
+      startingXI.find(player => player.position === 'GKP');
+
+    if (
+      startingGoalkeeper &&
+      isPlayerOut(startingGoalkeeper) &&
+      benchGoalkeeper &&
+      benchGoalkeeper.multiplier === 0 &&
+      !isPlayerOut(benchGoalkeeper)
+    ) {
+      autoSubs.push({
+        outId: startingGoalkeeper.id,
+        outName: startingGoalkeeper.name,
+        inId: benchGoalkeeper.id,
+        inName: benchGoalkeeper.name
+      });
+
+      benchGoalkeeper.multiplier = 1;
+      startingGoalkeeper.multiplier = 0;
+    }
+
+    const usedBenchIds = new Set(autoSubs.map(sub => sub.inId));
+
+    function countingOutfieldTotals() {
+      const counting = picks.filter(
+        player => player.multiplier > 0 && player.position !== 'GKP'
+      );
+
+      return {
+        DEF: counting.filter(player => player.position === 'DEF').length,
+        MID: counting.filter(player => player.position === 'MID').length,
+        FWD: counting.filter(player => player.position === 'FWD').length
+      };
+    }
+
+    for (const outPlayer of startingXI.filter(player => player.position !== 'GKP')) {
+
+      if (outPlayer.multiplier === 0 || !isPlayerOut(outPlayer)) {
+        continue;
+      }
+
+      const candidate = benchOutfield.find(benchPlayer => {
+
+        if (usedBenchIds.has(benchPlayer.id)) {
+          return false;
+        }
+        if (benchPlayer.multiplier > 0) {
+          return false;
+        }
+        if (isPlayerOut(benchPlayer)) {
+          return false;
+        }
+
+        const counts = countingOutfieldTotals();
+        counts[outPlayer.position] -= 1;
+        counts[benchPlayer.position] = (counts[benchPlayer.position] || 0) + 1;
+
+        return (
+          counts.DEF >= 3 && counts.DEF <= 5 &&
+          counts.MID >= 2 && counts.MID <= 5 &&
+          counts.FWD >= 1 && counts.FWD <= 3
+        );
+
+      });
+
+      if (candidate) {
+        autoSubs.push({
+          outId: outPlayer.id,
+          outName: outPlayer.name,
+          inId: candidate.id,
+          inName: candidate.name
+        });
+
+        usedBenchIds.add(candidate.id);
+        candidate.multiplier = 1;
+        outPlayer.multiplier = 0;
+      }
+
+    }
+
+  }
+
+  const captain = picks.find(player => player.isCaptain);
+  const viceCaptain = picks.find(player => player.isViceCaptain);
+  const armbandMultiplier = activeChip === '3xc' ? 3 : 2;
+
+  if (captain && isPlayerOut(captain)) {
+
+    if (viceCaptain && !isPlayerOut(viceCaptain)) {
+
+      captain.multiplier = captain.multiplier > 0 ? 1 : 0;
+      viceCaptain.multiplier =
+        viceCaptain.multiplier > 0 ? armbandMultiplier : viceCaptain.multiplier;
+
+      captainFallback = {
+        fromId: captain.id,
+        fromName: captain.name,
+        toId: viceCaptain.id,
+        toName: viceCaptain.name
+      };
+
+    } else {
+
+      // Both captain and vice-captain are out - per FPL's own
+      // rules, nobody's score is doubled this Gameweek.
+      captain.multiplier = captain.multiplier > 0 ? 1 : 0;
+
+      captainFallback = {
+        fromId: captain.id,
+        fromName: captain.name,
+        toId: null,
+        toName: null
+      };
+
+    }
+
+  }
+
+  return { autoSubs, captainFallback };
+
+}
+
+/*
   ===================================================
   HANDLER
 
@@ -67,6 +243,11 @@ function chipLabel(code) {
   That means the total updates itself as the Gameweek
   goes on - all-projected before kickoff, a mix during
   play, and all-actual once every fixture is finished.
+
+  Also applies FPL's own automatic-substitution and
+  captain/vice-captain fallback rules (see
+  applyAutoSubsAndCaptaincy above), using each player's
+  real Gameweek minutes from event/{gw}/live/.
 
   Only meaningful for a Gameweek whose deadline has
   already passed - FPL's picks endpoint hides other
@@ -92,9 +273,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [bootstrap, fixtures] = await Promise.all([
+    const [bootstrap, fixtures, live] = await Promise.all([
       getJson(`${FPL}/bootstrap-static/`),
-      getJson(`${FPL}/fixtures/?event=${gw}`).catch(() => [])
+      getJson(`${FPL}/fixtures/?event=${gw}`).catch(() => []),
+      // Only used for real per-Gameweek minutes (auto-subs/
+      // captain fallback) - degrade gracefully without it.
+      getJson(`${FPL}/event/${gw}/live/`).catch(() => null)
     ]);
 
     const elementsById = new Map(
@@ -108,6 +292,25 @@ export default async function handler(req, res) {
     const typesById = new Map(
       bootstrap.element_types.map(type => [type.id, type])
     );
+
+    const minutesByElement = new Map(
+      (live?.elements || []).map(
+        entry => [entry.id, Number(entry.stats?.minutes || 0)]
+      )
+    );
+
+    /*
+      Whether FPL has fully data-checked this Gameweek yet -
+      auto-subs/captaincy fallback are computed here as soon as
+      a player's own match is finished (see isPlayerOut), which
+      mirrors what FPL's site shows live, but the official,
+      guaranteed-final word only lands once the whole Gameweek
+      is checked (post-match stat corrections can occasionally
+      still flip a marginal case before then).
+    */
+
+    const gwEvent = (bootstrap.events || []).find(event => event.id === gw);
+    const gwDataChecked = !!gwEvent?.data_checked;
 
     /*
       Which teams have a fixture that's already kicked off
@@ -140,11 +343,6 @@ export default async function handler(req, res) {
           const rawPicks = Array.isArray(picksData.picks)
             ? picksData.picks
             : [];
-
-          let predictedTotal = 0;
-          const contributions = [];
-          let everyStarterFinished = true;
-          let anyStarterStarted = false;
 
           const picks = rawPicks
             .slice()
@@ -188,7 +386,10 @@ export default async function handler(req, res) {
                 reported it lagging active_chip right after a
                 chip is played). Force it to match what the
                 chip actually implies so captain doubling and
-                Bench Boost always show up correctly.
+                Bench Boost always show up correctly. This is
+                the BASE multiplier, before auto-subs/captaincy
+                fallback (applyAutoSubsAndCaptaincy) can still
+                adjust it below.
               */
 
               let multiplier = pick.multiplier || 0;
@@ -210,16 +411,7 @@ export default async function handler(req, res) {
                     : 2;
               }
 
-              const contribution = pointsBasis * multiplier;
-
-              predictedTotal += contribution;
-
-              if (multiplier > 0) {
-                anyStarterStarted = anyStarterStarted || started;
-                everyStarterFinished = everyStarterFinished && finished;
-              }
-
-              const player = {
+              return {
                 id: pick.element,
                 name: element?.web_name || 'Unknown',
                 team: team?.short_name || '',
@@ -227,14 +419,14 @@ export default async function handler(req, res) {
                 slot: pick.position,
                 onBench: pick.position > 11,
                 multiplier,
+                pointsBasis,
+                minutes: minutesByElement.get(pick.element) ?? 0,
                 isCaptain: !!pick.is_captain,
                 isViceCaptain: !!pick.is_vice_captain,
                 status: finished ? 'final' : started ? 'live' : 'upcoming',
                 livePoints,
                 expectedPoints:
                   Math.round(epThis * 10) / 10,
-                predictedContribution:
-                  Math.round(contribution * 10) / 10,
 
                 /*
                   Season-to-date stats, used by the squad
@@ -264,13 +456,47 @@ export default async function handler(req, res) {
                   element?.chance_of_playing_this_round ??
                   null
               };
-
-              if (multiplier > 0) {
-                contributions.push(player);
-              }
-
-              return player;
             });
+
+          const { autoSubs, captainFallback } =
+            applyAutoSubsAndCaptaincy(picks, picksData.active_chip);
+
+          const autoSubOutIds = new Set(autoSubs.map(sub => sub.outId));
+          const autoSubInIds = new Set(autoSubs.map(sub => sub.inId));
+
+          /*
+            Multipliers may have just changed (auto-subs and/or
+            the captaincy fallback), so points contribution,
+            the team total, and who counts as a "top
+            contributor" are all finalized here, after that.
+          */
+
+          let predictedTotal = 0;
+          const contributions = [];
+          let everyStarterFinished = true;
+          let anyStarterStarted = false;
+
+          for (const player of picks) {
+
+            const contribution = player.pointsBasis * player.multiplier;
+
+            player.predictedContribution =
+              Math.round(contribution * 10) / 10;
+
+            player.substitutedOut = autoSubOutIds.has(player.id);
+            player.substitutedIn = autoSubInIds.has(player.id);
+
+            predictedTotal += contribution;
+
+            if (player.multiplier > 0) {
+              anyStarterStarted =
+                anyStarterStarted || player.status !== 'upcoming';
+              everyStarterFinished =
+                everyStarterFinished && player.status === 'final';
+              contributions.push(player);
+            }
+
+          }
 
           contributions.sort(
             (a, b) =>
@@ -315,7 +541,14 @@ export default async function handler(req, res) {
             startingXI,
             bench: picks.filter(
               player => player.onBench
-            )
+            ),
+            autoSubs,
+            captainFallback,
+            // Auto-subs/captaincy fallback are computed as soon
+            // as a player's own match is finished (see
+            // isPlayerOut) - true/final only once FPL has fully
+            // data-checked the whole Gameweek.
+            autoSubsFinal: gwDataChecked
           };
 
         } catch (error) {
