@@ -3018,15 +3018,6 @@ p {
 }
 
 
-.fixture-lineups {
-  display: grid;
-
-  grid-template-columns: 1fr 1fr;
-
-  gap: 10px;
-}
-
-
 .fixture-lineup-column {
   padding: 10px;
 
@@ -3050,26 +3041,6 @@ p {
 }
 
 
-.fixture-lineup-player {
-  margin: 0 0 6px;
-
-  font-size: 11px;
-  font-weight: 700;
-}
-
-
-.fixture-lineup-player small {
-  display: inline-block;
-
-  width: 26px;
-
-  color: var(--muted);
-
-  font-size: 8.5px;
-  font-weight: 800;
-}
-
-
 .fixture-lineup-empty {
   margin: 0;
 
@@ -3079,28 +3050,64 @@ p {
 }
 
 
-.fixture-sub-tag {
-  display: inline-block;
+.fixture-events-columns {
+  display: grid;
 
-  margin-left: 4px;
-  padding: 1px 5px;
+  grid-template-columns: 1fr 1fr;
 
-  border-radius: 6px;
+  gap: 10px;
+}
 
-  background: var(--surface-2);
 
-  color: var(--muted);
+.fixture-pitch-team {
+  margin-bottom: 16px;
+}
 
-  font-size: 8px;
-  font-weight: 800;
 
-  text-transform: uppercase;
+.fixture-pitch-team:last-child {
+  margin-bottom: 0;
+}
+
+
+.pitch-compact {
+  min-height: 220px;
+
+  gap: 10px;
+
+  padding: 14px 4px 12px;
+}
+
+
+.pitch-compact .pitch-row {
+  flex-wrap: wrap;
+
+  row-gap: 10px;
+}
+
+
+.pitch-compact .pitch-shirt-wrap {
+  width: 32px;
+  height: 32px;
+
+  margin-bottom: 3px;
+
+  font-size: 15px;
+}
+
+
+.pitch-compact .pitch-player {
+  width: 56px;
+}
+
+
+.pitch-compact .pitch-player-name {
+  font-size: 9.5px;
 }
 
 
 @media (max-width: 420px) {
 
-  .fixture-lineups {
+  .fixture-events-columns {
     grid-template-columns: 1fr;
   }
 

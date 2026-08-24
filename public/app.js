@@ -2278,59 +2278,115 @@ function closeFixtureDetail() {
 
 
 /*
-  One line per player for a match-events category (scorers,
-  assists, cards, etc) - name, side (H/A), and a ×N tag once
-  they've done it more than once (a brace, a second booking).
-  Bonus points use a "+N" suffix instead, shown even at 1.
+  Match events are grouped by TEAM (not by category) so each
+  side's scorers/assists/cards/bonus/defensive-contributions
+  sit together in that team's own column - no more one flat
+  list mixing both sides, and no more "×N"/"+N pts" tags next
+  to names (the icon already says what happened; the count
+  wasn't adding anything worth the confusion).
 */
 
-function matchEventLine(icon, entries, valueSuffix) {
+const FIXTURE_EVENT_CATEGORIES = [
+  { key: 'scorers', icon: '⚽' },
+  { key: 'assists', icon: '🅰️' },
+  { key: 'bonus', icon: '⭐' },
+  { key: 'defensiveContributions', icon: '🛡️' },
+  { key: 'yellowCards', icon: '🟨' },
+  { key: 'redCards', icon: '🟥' },
+  { key: 'penaltiesSaved', icon: '🧤' },
+  { key: 'penaltiesMissed', icon: '❌' },
+  { key: 'ownGoals', icon: '⚠️' }
+];
 
-  if (!entries || !entries.length) {
-    return '';
-  }
+function teamEventLines(events, teamKey) {
 
-  return `
-    <p class="fixture-event-line">
-      <span class="fixture-event-icon">${icon}</span>
-      ${
-        entries
-          .map(entry => {
-            const tag =
-              valueSuffix
-                ? ` ${valueSuffix === 'pts' ? '+' : '×'}${entry.value}${valueSuffix === 'pts' ? ' pts' : ''}`
-                : entry.value > 1
-                  ? ` ×${entry.value}`
-                  : '';
+  const lines = [];
 
-            return `${escapeHtml(entry.name)} <small>(${entry.team === 'h' ? 'H' : 'A'})</small>${tag}`;
-          })
-          .join(', ')
-      }
-    </p>
-  `;
+  FIXTURE_EVENT_CATEGORIES.forEach(category => {
+
+    (events[category.key] || [])
+      .filter(entry => entry.team === teamKey)
+      .forEach(entry => {
+
+        lines.push(`
+          <p class="fixture-event-line">
+            <span class="fixture-event-icon">${category.icon}</span>
+            ${escapeHtml(entry.name)}
+          </p>
+        `);
+
+      });
+
+  });
+
+  return lines;
 
 }
 
 
-function fixtureLineupColumn(title, players) {
+function fixtureEventsColumn(title, lines) {
 
   return `
     <div class="fixture-lineup-column">
       <p class="fixture-lineup-title">${escapeHtml(title)}</p>
       ${
+        lines.length
+          ? lines.join('')
+          : '<p class="fixture-lineup-empty">No events yet.</p>'
+      }
+    </div>
+  `;
+
+}
+
+
+/*
+  Lineups render as a pitch view - same GKP/DEF/MID/FWD
+  row layout as the Squad tab's pitch (pitchRows() below),
+  just with a lighter player card since there's no FPL
+  points/captaincy/ownership context for a real-world
+  match lineup, only who played and whether they started.
+*/
+
+function fixtureLineupPlayerCard(player) {
+
+  return `
+    <div class="pitch-player">
+      <div class="pitch-shirt-wrap">
+        <span class="pitch-shirt">👕</span>
+      </div>
+      <div class="pitch-player-name">
+        ${escapeHtml(player.name)}
+      </div>
+      ${player.started === false ? '<span class="pitch-sub-tag in">SUB</span>' : ''}
+    </div>
+  `;
+
+}
+
+
+function fixtureLineupPitch(title, players) {
+
+  return `
+    <div class="fixture-pitch-team">
+      <p class="fixture-lineup-title">${escapeHtml(title)}</p>
+      ${
         players.length
-          ? players
-              .map(
-                player => `
-                  <p class="fixture-lineup-player">
-                    <small>${escapeHtml(player.position)}</small>
-                    ${escapeHtml(player.name)}
-                    ${player.started === false ? '<span class="fixture-sub-tag">sub</span>' : ''}
-                  </p>
-                `
-              )
-              .join('')
+          ? `
+            <div class="pitch pitch-compact">
+              ${
+                pitchRows(players)
+                  .map(
+                    row => `
+                      <div class="pitch-row">
+                        ${row.map(player => fixtureLineupPlayerCard(player)).join('')}
+                      </div>
+                    `
+                  )
+                  .join('')
+              }
+            </div>
+          `
           : '<p class="fixture-lineup-empty">No data yet.</p>'
       }
     </div>
@@ -2363,24 +2419,22 @@ function buildFixtureDetailHtml(fixture) {
   const events =
     fixture.events;
 
-  const eventsHtml =
+  const homeEventLines =
     events
-      ? [
-          matchEventLine('⚽', events.scorers),
-          matchEventLine('🅰️', events.assists),
-          matchEventLine('⭐', events.bonus, 'pts'),
-          matchEventLine('🛡️', events.defensiveContributions),
-          matchEventLine('🟨', events.yellowCards),
-          matchEventLine('🟥', events.redCards),
-          matchEventLine('🧤', events.penaltiesSaved),
-          matchEventLine('❌', events.penaltiesMissed),
-          matchEventLine('⚠️', events.ownGoals)
-        ].join('')
-      : '';
+      ? teamEventLines(events, 'h')
+      : [];
+
+  const awayEventLines =
+    events
+      ? teamEventLines(events, 'a')
+      : [];
 
   const noEventsYet =
-    events &&
-    !eventsHtml.trim();
+    !events ||
+    (
+      !homeEventLines.length &&
+      !awayEventLines.length
+    );
 
   return `
 
@@ -2409,9 +2463,14 @@ function buildFixtureDetailHtml(fixture) {
             <h3>Match events</h3>
           </div>
           ${
-            eventsHtml && !noEventsYet
-              ? eventsHtml
-              : '<p class="fixture-detail-note">No notable events recorded yet.</p>'
+            noEventsYet
+              ? '<p class="fixture-detail-note">No notable events recorded yet.</p>'
+              : `
+                <div class="fixture-events-columns">
+                  ${fixtureEventsColumn(fixture.homeTeamName, homeEventLines)}
+                  ${fixtureEventsColumn(fixture.awayTeamName, awayEventLines)}
+                </div>
+              `
           }
           ${
             events && !events.bonusFinal
@@ -2432,10 +2491,8 @@ function buildFixtureDetailHtml(fixture) {
             Reflects who's actually featured so far - FPL doesn't publish
             pre-match team news, so this fills in once the match kicks off.
           </p>
-          <div class="fixture-lineups">
-            ${fixtureLineupColumn(fixture.homeTeamName, fixture.lineups.home)}
-            ${fixtureLineupColumn(fixture.awayTeamName, fixture.lineups.away)}
-          </div>
+          ${fixtureLineupPitch(fixture.homeTeamName, fixture.lineups.home)}
+          ${fixtureLineupPitch(fixture.awayTeamName, fixture.lineups.away)}
         `
         : `
           <p class="fixture-detail-note">
@@ -3061,6 +3118,24 @@ function renderSelectedSquad() {
     ).length;
 
 
+  /*
+    Same live GW points shown on the GW standings screen
+    (manager.gameweekPoints, FPL's own official live total) -
+    NOT the Compare screen's "what if" simulator, which only
+    ever touches its own separate scenario state and never
+    this figure. LIVE/FINAL mirrors the GW screen's status
+    dot logic; while nothing's kicked off yet it just reads
+    "GW PTS" like the standings row does.
+  */
+
+  const liveLabel =
+    squad.liveStatus === 'final'
+      ? 'FINAL'
+      : squad.liveStatus === 'live'
+        ? 'LIVE'
+        : 'GW PTS';
+
+
   $('squadDetail').innerHTML = `
 
     <div class="award-card squad-summary-card" style="margin-bottom:18px;">
@@ -3078,6 +3153,10 @@ function renderSelectedSquad() {
           Vice
           ${squad.viceCaptain ? escapeHtml(squad.viceCaptain.name) : '—'}
         </p>
+      </div>
+      <div class="points">
+        <strong>${manager.gameweekPoints ?? '—'}</strong>
+        <small>${liveLabel}</small>
       </div>
     </div>
 
