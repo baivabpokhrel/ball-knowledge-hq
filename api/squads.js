@@ -259,9 +259,16 @@ export default async function handler(req, res) {
       bootstrap.element_types.map(type => [type.id, type])
     );
 
-    const minutesByElement = new Map(
+    /*
+      event/{gw}/live/ is FPL's dedicated real-time scoring feed -
+      it updates noticeably faster during a match than the mirrored
+      copies of the same numbers (minutes, event_points) inside
+      bootstrap-static, which is why bootstrap is only ever used
+      below as a fallback for a player live/ has no entry for yet.
+    */
+    const liveStatsByElement = new Map(
       (live?.elements || []).map(
-        entry => [entry.id, Number(entry.stats?.minutes || 0)]
+        entry => [entry.id, entry.stats || {}]
       )
     );
 
@@ -330,9 +337,14 @@ export default async function handler(req, res) {
                 ? Number(element.ep_this || 0)
                 : 0;
 
-              const livePoints = element
-                ? Number(element.event_points || 0)
-                : 0;
+              const liveStats = liveStatsByElement.get(pick.element);
+
+              const livePoints =
+                liveStats?.total_points != null
+                  ? Number(liveStats.total_points)
+                  : element
+                    ? Number(element.event_points || 0)
+                    : 0;
 
               /*
                 The blended number: real points once the
@@ -386,7 +398,7 @@ export default async function handler(req, res) {
                 onBench: pick.position > 11,
                 multiplier,
                 pointsBasis,
-                minutes: minutesByElement.get(pick.element) ?? 0,
+                minutes: Number(liveStats?.minutes || 0),
                 isCaptain: !!pick.is_captain,
                 isViceCaptain: !!pick.is_vice_captain,
                 status: finished ? 'final' : started ? 'live' : 'upcoming',
@@ -481,20 +493,35 @@ export default async function handler(req, res) {
             player => !player.onBench
           );
 
+          /*
+            FPL's own "points" field for a single Gameweek is the
+            RAW score BEFORE any transfer-cost hit - the hit only
+            ever shows up baked into the season-long running total
+            (entry_history.total_points), never in the per-GW figure
+            itself. Both actualPoints (FPL's own official figure)
+            and predictedTotal (this app's own live estimate) net it
+            out here, once, so nothing downstream can accidentally
+            show a manager's points before their hit is applied.
+          */
+          const transferCost =
+            picksData.entry_history?.event_transfers_cost ?? 0;
+
+          const netPredictedTotal = predictedTotal - transferCost;
+
           return {
             entryId,
             error: null,
             activeChip: picksData.active_chip || null,
             activeChipLabel: chipLabel(picksData.active_chip),
             actualPoints:
-              picksData.entry_history?.points ?? null,
+              picksData.entry_history?.points != null
+                ? picksData.entry_history.points - transferCost
+                : null,
             transfers:
               picksData.entry_history?.event_transfers ?? 0,
-            transferCost:
-              picksData.entry_history
-                ?.event_transfers_cost ?? 0,
+            transferCost,
             predictedTotal:
-              Math.round(predictedTotal * 10) / 10,
+              Math.round(netPredictedTotal * 10) / 10,
             liveStatus:
               !anyStarterStarted
                 ? 'upcoming'

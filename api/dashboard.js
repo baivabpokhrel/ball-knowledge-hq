@@ -137,21 +137,6 @@ export default async function handler(req, res) {
 
 
     /*
-      Viewing the live/current Gameweek is the overwhelmingly
-      common case (every normal page load and auto-refresh).
-      The league standings response already has correct, LIVE
-      event_total/total numbers for it - no need to also hit
-      15+ separate per-manager history endpoints just to
-      re-confirm the same numbers. That only matters (and is
-      only possible) when looking at a DIFFERENT, past Gameweek.
-    */
-
-    const isLiveCurrentGw =
-      !!autoEvent &&
-      gw === autoEvent.id;
-
-
-    /*
       --------------------------------
       PRIVATE LEAGUE
       --------------------------------
@@ -267,49 +252,86 @@ export default async function handler(req, res) {
       await Promise.all(
         rows.map(
           async row => {
+            /*
+              Both fallbacks below (used before the deadline, or if
+              FPL's picks endpoint fails for one manager) come from
+              the league standings response - `event_total`, like
+              `points` on the picks endpoint, is the RAW score
+              before any transfer-cost hit, since that's all
+              standings has to offer. It's only a fallback: the
+              normal path below replaces it with the true net
+              figure for every manager whose picks we can read.
+            */
             let gameweekPoints =
               row.event_total ?? 0;
 
             let seasonPoints =
               row.total ?? 0;
 
-
-            if (!isLiveCurrentGw) {
-
-              try {
-                const history =
-                  await getJson(
-                    `${FPL}/entry/${row.entry}/history/`
-                  );
+            let eventTransfers = 0;
+            let eventTransfersCost = 0;
 
 
-                const current =
-                  history.current?.find(
-                    item =>
-                      item.event === gw
-                  );
-
-
-                if (current) {
-                  gameweekPoints =
-                    current.points ??
-                    gameweekPoints;
-
-                  seasonPoints =
-                    current.total_points ??
-                    seasonPoints;
-                }
-
-              } catch (error) {
-                /*
-                  Expected before GW1, or a manager who
-                  has no history yet for this Gameweek.
-                */
-                console.log(
-                  `No history for entry ${row.entry}: ${error.message}`
+            try {
+              /*
+                entry/{id}/event/{gw}/picks/ is the one place that
+                carries BOTH this Gameweek's raw points AND the
+                transfer-cost hit that applies to them, for any
+                Gameweek (live or past) whose deadline has passed.
+                Cached briefly since this now runs for every manager
+                on every dashboard load, including the live/current
+                Gameweek (previously read straight from standings,
+                for free) - the cache keeps a burst of page loads
+                from turning into a full per-manager fan-out to FPL
+                each time.
+              */
+              const picks =
+                await getJson(
+                  `${FPL}/entry/${row.entry}/event/${gw}/picks/`,
+                  { cacheMs: 20000 }
                 );
+
+              const history =
+                picks.entry_history;
+
+              if (history) {
+                eventTransfers =
+                  history.event_transfers ?? 0;
+
+                eventTransfersCost =
+                  history.event_transfers_cost ?? 0;
+
+                /*
+                  FPL's own "points" field for a single Gameweek is
+                  the RAW score BEFORE the transfer-cost hit is
+                  subtracted - that hit only ever shows up baked
+                  into the season-long total_points running total,
+                  never in the per-GW figure itself (confirmed
+                  against FPL's real data: a manager's total_points
+                  each week is exactly points - event_transfers_cost
+                  added to the previous week's total). Net it out
+                  here so every screen that shows "this Gameweek's
+                  points" - standings, the winner award, analytics -
+                  shows the number that actually counts.
+                */
+                gameweekPoints =
+                  (history.points ?? gameweekPoints) -
+                  eventTransfersCost;
+
+                seasonPoints =
+                  history.total_points ??
+                  seasonPoints;
               }
 
+            } catch (error) {
+              /*
+                Expected before this Gameweek's deadline has passed
+                (picks aren't published yet) - falls back to the
+                standings figure above, same as always.
+              */
+              console.log(
+                `No picks for entry ${row.entry}, GW ${gw}: ${error.message}`
+              );
             }
 
 
@@ -337,6 +359,10 @@ export default async function handler(req, res) {
               gameweekPoints,
 
               seasonPoints,
+
+              eventTransfers,
+
+              eventTransfersCost,
 
               movement:
                 row.last_rank &&

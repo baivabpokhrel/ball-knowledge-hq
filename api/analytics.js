@@ -1,32 +1,4 @@
-const FPL = 'https://fantasy.premierleague.com/api';
-
-const FPL_TIMEOUT_MS = 8000;
-
-async function getJson(url) {
-  let response;
-
-  try {
-    response = await fetch(url, {
-      headers: {
-        'User-Agent': 'BallKnowledgeHQ/0.5',
-        Accept: 'application/json'
-      },
-      signal: AbortSignal.timeout(FPL_TIMEOUT_MS)
-    });
-
-  } catch (error) {
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-      throw new Error('FPL is responding slowly right now - please try again.');
-    }
-    throw error;
-  }
-
-  if (!response.ok) {
-    throw new Error(`FPL returned ${response.status}`);
-  }
-
-  return response.json();
-}
+import { FPL, getJson } from './lib/fplClient.js';
 
 function average(values) {
   if (!values.length) return 0;
@@ -76,11 +48,19 @@ export default async function handler(req, res) {
         try {
           const history = await getJson(`${FPL}/entry/${entryId}/history/`);
 
+          /*
+            week.points is FPL's RAW per-Gameweek score, BEFORE any
+            transfer-cost hit - it only ever shows up net inside the
+            season-long total_points running total, never in the
+            per-GW figure itself. Every stat built from these weeks
+            (highest score, fraud of the week, season average) needs
+            the true net number, same as the dashboard.
+          */
           const weeks = (Array.isArray(history.current) ? history.current : [])
             .filter(week => week.event <= throughGw)
             .map(week => ({
               gw: week.event,
-              points: week.points ?? 0
+              points: (week.points ?? 0) - (week.event_transfers_cost ?? 0)
             }));
 
           return { entryId, error: null, weeks };

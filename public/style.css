@@ -618,6 +618,18 @@ p {
 }
 
 
+.transfer-hit-badge {
+  display: block;
+
+  margin-top: 3px;
+
+  color: var(--red);
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
 .points-pending {
   display: block;
 

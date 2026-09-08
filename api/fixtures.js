@@ -213,12 +213,23 @@ export default async function handler(req, res) {
 
             const type = typesById.get(element.element_type);
 
+            /*
+              live/'s own stats.total_points is FPL's real-time
+              scoring feed - it updates noticeably faster during a
+              match than bootstrap-static's mirrored event_points,
+              which is only used here as a fallback.
+            */
+            const points =
+              liveEntry?.stats?.total_points != null
+                ? Number(liveEntry.stats.total_points)
+                : Number(element.event_points || 0);
+
             return {
               id: element.id,
               name: element.web_name,
               position: type?.singular_name_short || '',
               started,
-              points: Number(element.event_points || 0)
+              points
             };
           })
           .filter(Boolean)

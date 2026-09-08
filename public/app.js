@@ -577,6 +577,19 @@ function standingsRow(
           }
         </small>
 
+        ${
+          weekly && manager.eventTransfersCost > 0
+            ? `
+              <small
+                class="transfer-hit-badge"
+                title="${manager.eventTransfers} transfers this Gameweek - already subtracted from the points above"
+              >
+                −${manager.eventTransfersCost} hit
+              </small>
+            `
+            : ''
+        }
+
       </div>
 
       ${
@@ -4919,7 +4932,10 @@ function renderGameweekAward() {
             winner => ({
               name: winner.manager,
               sub: winner.team,
-              value: `${winner.gameweekPoints} pts`
+              value:
+                winner.eventTransfersCost > 0
+                  ? `${winner.gameweekPoints} pts (−${winner.eventTransfersCost} hit)`
+                  : `${winner.gameweekPoints} pts`
             })
           ),
         note: `Final GW${gw} result after FPL checks.`
@@ -4986,7 +5002,10 @@ function renderGameweekAward() {
           leader => ({
             name: leader.manager,
             sub: leader.team,
-            value: `${leader.gameweekPoints} pts`
+            value:
+              leader.eventTransfersCost > 0
+                ? `${leader.gameweekPoints} pts (−${leader.eventTransfersCost} hit)`
+                : `${leader.gameweekPoints} pts`
           })
         ),
       note: 'Points may still change after bonuses and corrections.'
