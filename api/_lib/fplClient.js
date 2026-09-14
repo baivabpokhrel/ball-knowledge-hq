@@ -1,4 +1,17 @@
 /*
+  This whole directory lives at api/_lib/ - NOT api/lib/ - on purpose.
+  Vercel deploys a separate Serverless Function for every .js file
+  under /api, at any depth, whether or not it's actually a route
+  handler; the leading underscore is Vercel's own convention for
+  "shared code, not a route" and excludes a file/folder from that
+  count. Adding a 4th file to a plain api/lib/ once (liveScoring.js)
+  pushed this project over the Hobby plan's 12-function cap and
+  silently failed the deploy (production kept serving the OLD code
+  with no visible error on the live site - only Vercel's own
+  deployment log showed the real "No more than 12 Serverless
+  Functions" error). Keep any future shared/helper module in here,
+  under the underscore, so it never counts against that limit again.
+
   Shared FPL API client used by every serverless route that talks to
   fantasy.premierleague.com. Centralised here for a few reasons:
 

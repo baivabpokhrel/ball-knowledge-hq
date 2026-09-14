@@ -1,6 +1,6 @@
-import { FPL, getJson, getBootstrap, mapWithConcurrency } from './lib/fplClient.js';
-import { noCache } from './lib/http.js';
-import { buildLiveContext, buildManagerSquad } from './lib/liveScoring.js';
+import { FPL, getJson, getBootstrap, mapWithConcurrency } from './_lib/fplClient.js';
+import { noCache } from './_lib/http.js';
+import { buildLiveContext, buildManagerSquad } from './_lib/liveScoring.js';
 
 /*
   ===================================================
@@ -25,7 +25,7 @@ import { buildLiveContext, buildManagerSquad } from './lib/liveScoring.js';
   player's real Gameweek minutes from event/{gw}/live/.
   This per-manager scoring logic (auto-subs, captaincy
   fallback, the live-vs-projected blend) is shared with
-  api/dashboard.js via api/lib/liveScoring.js, so both
+  api/dashboard.js via api/_lib/liveScoring.js, so both
   routes always agree on "what does this manager's
   Gameweek look like right now" - see that file for why
   that sharing matters.

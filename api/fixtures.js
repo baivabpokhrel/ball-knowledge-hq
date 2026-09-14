@@ -1,5 +1,5 @@
-import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
-import { noCache } from './lib/http.js';
+import { FPL, getJson, getBootstrap } from './_lib/fplClient.js';
+import { noCache } from './_lib/http.js';
 
 /*
   ===================================================

@@ -1,6 +1,6 @@
 import {
   supabaseRequest
-} from '../lib/supabase.js';
+} from '../_lib/supabase.js';
 
 export default async function handler(req, res) {
 

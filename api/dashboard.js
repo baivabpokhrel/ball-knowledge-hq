@@ -1,6 +1,6 @@
-import { FPL, getJson, getBootstrap, mapWithConcurrency } from './lib/fplClient.js';
-import { noCache } from './lib/http.js';
-import { buildLiveContext, buildManagerSquad } from './lib/liveScoring.js';
+import { FPL, getJson, getBootstrap, mapWithConcurrency } from './_lib/fplClient.js';
+import { noCache } from './_lib/http.js';
+import { buildLiveContext, buildManagerSquad } from './_lib/liveScoring.js';
 
 
 function fullManagerName(row) {

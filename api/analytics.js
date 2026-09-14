@@ -1,5 +1,5 @@
-import { FPL, getJson, mapWithConcurrency } from './lib/fplClient.js';
-import { noCache } from './lib/http.js';
+import { FPL, getJson, mapWithConcurrency } from './_lib/fplClient.js';
+import { noCache } from './_lib/http.js';
 
 function average(values) {
   if (!values.length) return 0;
