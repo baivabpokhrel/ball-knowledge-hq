@@ -1,4 +1,5 @@
-import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
+import { FPL, getJson, getBootstrap, mapWithConcurrency } from './lib/fplClient.js';
+import { noCache } from './lib/http.js';
 
 
 function fullManagerName(row) {
@@ -65,6 +66,8 @@ function eventStatus(event) {
 
 
 export default async function handler(req, res) {
+  noCache(res);
+
   const leagueId = String(
     req.query.leagueId ||
       process.env.FPL_LEAGUE_ID ||
@@ -248,10 +251,21 @@ export default async function handler(req, res) {
       --------------------------------
     */
 
+    /*
+      Fetching every manager's picks at once (a single Promise.all
+      over the whole league) turned out to be enough simultaneous
+      load on FPL - on top of bootstrap-static and standings in the
+      same request - to trip its rate limiting hard, even with the
+      retries in fplClient. A handful at a time is gentler and still
+      fast (a league this size finishes in 2-3 batches).
+    */
+    const MANAGER_FETCH_CONCURRENCY = 5;
+
     const detailed =
-      await Promise.all(
-        rows.map(
-          async row => {
+      await mapWithConcurrency(
+        rows,
+        MANAGER_FETCH_CONCURRENCY,
+        async row => {
             /*
               Both fallbacks below (used before the deadline, or if
               FPL's picks endpoint fails for one manager) come from
@@ -374,8 +388,7 @@ export default async function handler(req, res) {
               source:
                 row.source
             };
-          }
-        )
+        }
       );
 
 

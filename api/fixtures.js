@@ -1,4 +1,5 @@
 import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
+import { noCache } from './lib/http.js';
 
 /*
   ===================================================
@@ -33,6 +34,8 @@ import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
 */
 
 export default async function handler(req, res) {
+  noCache(res);
+
   const gw = Number(req.query.gw || 0);
 
   if (!Number.isInteger(gw) || gw < 1 || gw > 38) {

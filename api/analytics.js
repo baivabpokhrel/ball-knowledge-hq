@@ -1,4 +1,5 @@
-import { FPL, getJson } from './lib/fplClient.js';
+import { FPL, getJson, mapWithConcurrency } from './lib/fplClient.js';
+import { noCache } from './lib/http.js';
 
 function average(values) {
   if (!values.length) return 0;
@@ -31,6 +32,8 @@ function standardDeviation(values) {
 */
 
 export default async function handler(req, res) {
+  noCache(res);
+
   const throughGw = Number(req.query.throughGw || 38);
 
   const entryIds = String(req.query.entries || '')
@@ -43,8 +46,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const histories = await Promise.all(
-      entryIds.map(async entryId => {
+    /*
+      Same rate-limit-friendly reasoning as dashboard.js/squads.js: a
+      league's worth of entry/{id}/history/ calls fired all at once in
+      a single Promise.all is exactly the kind of burst that trips
+      FPL's rate limiting (on top of whatever else is in flight from
+      the dashboard/squads tabs the user likely already has loaded). A
+      handful at a time is gentler and still finishes in a couple of
+      batches.
+    */
+    const ANALYTICS_FETCH_CONCURRENCY = 5;
+
+    const histories = await mapWithConcurrency(
+      entryIds,
+      ANALYTICS_FETCH_CONCURRENCY,
+      async entryId => {
         try {
           const history = await getJson(`${FPL}/entry/${entryId}/history/`);
 
@@ -68,7 +84,7 @@ export default async function handler(req, res) {
         } catch (error) {
           return { entryId, error: error.message || 'Unable to load history', weeks: [] };
         }
-      })
+      }
     );
 
     /*

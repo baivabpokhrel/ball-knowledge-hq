@@ -1,4 +1,5 @@
-import { FPL, getJson, getBootstrap } from './lib/fplClient.js';
+import { FPL, getJson, getBootstrap, mapWithConcurrency } from './lib/fplClient.js';
+import { noCache } from './lib/http.js';
 
 /*
   Chip codes FPL returns on entry_history / active_chip,
@@ -223,6 +224,8 @@ function applyAutoSubsAndCaptaincy(picks, activeChip) {
 */
 
 export default async function handler(req, res) {
+  noCache(res);
+
   const gw = Number(req.query.gw || 0);
 
   const entryIds = String(req.query.entries || '')
@@ -306,8 +309,18 @@ export default async function handler(req, res) {
       }
     }
 
-    const squads = await Promise.all(
-      entryIds.map(async entryId => {
+    /*
+      Same reasoning as dashboard.js: firing every manager's picks
+      fetch at once, on top of bootstrap/fixtures/live in the same
+      request, is enough simultaneous FPL load to trip rate limiting
+      - a handful at a time is gentler and barely slower.
+    */
+    const ENTRY_FETCH_CONCURRENCY = 5;
+
+    const squads = await mapWithConcurrency(
+      entryIds,
+      ENTRY_FETCH_CONCURRENCY,
+      async entryId => {
         try {
           const picksData = await getJson(
             `${FPL}/entry/${entryId}/event/${gw}/picks/`
@@ -552,7 +565,7 @@ export default async function handler(req, res) {
               'Unable to load this squad'
           };
         }
-      })
+      }
     );
 
     return res.status(200).json({
