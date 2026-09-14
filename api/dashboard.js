@@ -1,5 +1,6 @@
 import { FPL, getJson, getBootstrap, mapWithConcurrency } from './lib/fplClient.js';
 import { noCache } from './lib/http.js';
+import { buildLiveContext, buildManagerSquad } from './lib/liveScoring.js';
 
 
 function fullManagerName(row) {
@@ -145,11 +146,29 @@ export default async function handler(req, res) {
       --------------------------------
     */
 
-    const standings =
-      await getJson(
-        `${FPL}/leagues-classic/${leagueId}/standings/` +
-        `?page_new_entries=1&page_standings=1&phase=1`
-      );
+    /*
+      fixtures/live are fetched once per request here (not once per
+      manager) purely to build the shared liveContext below - the
+      same real-time-scoring context api/squads.js builds - so every
+      manager's Gameweek points can be computed the same live way
+      the Squad tab already does, instead of waiting on FPL's own
+      slower-to-update per-manager aggregate. Both degrade gracefully
+      to an empty/absent value on failure: liveContext still works,
+      it just can't detect started/finished fixtures or live points,
+      and callers fall back to the picks endpoint's own figures.
+    */
+    const [standings, fixtures, live] =
+      await Promise.all([
+        getJson(
+          `${FPL}/leagues-classic/${leagueId}/standings/` +
+          `?page_new_entries=1&page_standings=1&phase=1`
+        ),
+        getJson(`${FPL}/fixtures/?event=${gw}`).catch(() => []),
+        getJson(`${FPL}/event/${gw}/live/`).catch(() => null)
+      ]);
+
+    const liveContext =
+      buildLiveContext(bootstrap, fixtures, live, gw);
 
 
     const standingsRows =
@@ -305,37 +324,41 @@ export default async function handler(req, res) {
                   { cacheMs: 20000 }
                 );
 
-              const history =
-                picks.entry_history;
+              const squad =
+                buildManagerSquad(picks, liveContext);
 
-              if (history) {
-                eventTransfers =
-                  history.event_transfers ?? 0;
+              eventTransfers =
+                squad.transfers;
 
-                eventTransfersCost =
-                  history.event_transfers_cost ?? 0;
+              eventTransfersCost =
+                squad.transferCost;
 
-                /*
-                  FPL's own "points" field for a single Gameweek is
-                  the RAW score BEFORE the transfer-cost hit is
-                  subtracted - that hit only ever shows up baked
-                  into the season-long total_points running total,
-                  never in the per-GW figure itself (confirmed
-                  against FPL's real data: a manager's total_points
-                  each week is exactly points - event_transfers_cost
-                  added to the previous week's total). Net it out
-                  here so every screen that shows "this Gameweek's
-                  points" - standings, the winner award, analytics -
-                  shows the number that actually counts.
-                */
-                gameweekPoints =
-                  (history.points ?? gameweekPoints) -
-                  eventTransfersCost;
+              /*
+                Once FPL has fully data-checked this Gameweek
+                (liveContext.gwDataChecked), its own entry_history.
+                points is the guaranteed-final word - it can reflect
+                late stat corrections this app's own live computation
+                can't see - so prefer squad.actualPoints (already net
+                of the transfer-cost hit, see liveScoring.js). Until
+                then, entry_history.points lags well behind what's
+                actually happening on the pitch (FPL only recomputes
+                it periodically, not on every live score change), so
+                use squad.predictedTotal instead - the SAME live
+                total, built fresh from event/{gw}/live/ every
+                request, that the Squad tab already shows. This is
+                what makes the GW Standings table (and the total
+                shown at the top of a manager's own Squad tab, which
+                also reads manager.gameweekPoints) track live scoring
+                as fast as the Squad tab's own per-player list does.
+              */
+              gameweekPoints =
+                liveContext.gwDataChecked
+                  ? (squad.actualPoints ?? squad.predictedTotal)
+                  : squad.predictedTotal;
 
-                seasonPoints =
-                  history.total_points ??
-                  seasonPoints;
-              }
+              seasonPoints =
+                picks.entry_history?.total_points ??
+                seasonPoints;
 
             } catch (error) {
               /*

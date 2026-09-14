@@ -3224,12 +3224,15 @@ function renderSelectedSquad() {
 
   /*
     Same live GW points shown on the GW standings screen
-    (manager.gameweekPoints, FPL's own official live total) -
-    NOT the Compare screen's "what if" simulator, which only
-    ever touches its own separate scenario state and never
-    this figure. LIVE/FINAL mirrors the GW screen's status
-    dot logic; while nothing's kicked off yet it just reads
-    "GW PTS" like the standings row does.
+    (manager.gameweekPoints - computed live from event/{gw}/live/
+    while the Gameweek is in progress, same as this squad's own
+    predictedTotal below, and only replaced by FPL's own official
+    per-GW figure once the Gameweek is fully data-checked) - NOT
+    the Compare screen's "what if" simulator, which only ever
+    touches its own separate scenario state and never this figure.
+    LIVE/FINAL mirrors the GW screen's status dot logic; while
+    nothing's kicked off yet it just reads "GW PTS" like the
+    standings row does.
   */
 
   const liveLabel =
