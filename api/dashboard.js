@@ -343,18 +343,29 @@ export default async function handler(req, res) {
                 then, entry_history.points lags well behind what's
                 actually happening on the pitch (FPL only recomputes
                 it periodically, not on every live score change), so
-                use squad.predictedTotal instead - the SAME live
-                total, built fresh from event/{gw}/live/ every
-                request, that the Squad tab already shows. This is
-                what makes the GW Standings table (and the total
-                shown at the top of a manager's own Squad tab, which
-                also reads manager.gameweekPoints) track live scoring
-                as fast as the Squad tab's own per-player list does.
+                use squad.liveTotal instead - built fresh from
+                event/{gw}/live/ every request, same as the Squad tab.
+
+                Deliberately NOT squad.predictedTotal: that field
+                blends in FPL's own ep_this PROJECTION for any player
+                who hasn't kicked off yet, which is correct for the
+                Predict tab ("who's projected to win") but wrong here
+                - it made the GW Standings table show and sort by a
+                forward-looking guess instead of real points already
+                scored, which is its own bug (reported live: "GW tab
+                is showing predictions tab points"). liveTotal is
+                never a projection - 0 for anyone who hasn't played
+                yet - so it's the correct "how many points has this
+                manager actually scored so far" figure, and it's what
+                makes the GW Standings table (and the total shown at
+                the top of a manager's own Squad tab, which also reads
+                manager.gameweekPoints) track live scoring as fast as
+                the Squad tab's own per-player list does.
               */
               gameweekPoints =
                 liveContext.gwDataChecked
-                  ? (squad.actualPoints ?? squad.predictedTotal)
-                  : squad.predictedTotal;
+                  ? (squad.actualPoints ?? squad.liveTotal)
+                  : squad.liveTotal;
 
               seasonPoints =
                 picks.entry_history?.total_points ??

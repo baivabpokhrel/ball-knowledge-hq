@@ -413,6 +413,7 @@ export function buildManagerSquad(picksData, context) {
     that.
   */
   let predictedTotal = 0;
+  let liveTotal = 0;
   const contributions = [];
   let everyStarterFinished = true;
   let anyStarterStarted = false;
@@ -427,6 +428,20 @@ export function buildManagerSquad(picksData, context) {
     player.substitutedIn = autoSubInIds.has(player.id);
 
     predictedTotal += contribution;
+
+    /*
+      liveTotal is deliberately NOT the same number as predictedTotal.
+      predictedTotal blends in FPL's own ep_this projection for any
+      player who hasn't kicked off yet - exactly what the Predict tab
+      wants to show ("who's projected to win"), but wrong for "how
+      many points has this manager actually scored so far this
+      Gameweek" (what the GW Standings table, and the total at the
+      top of a manager's own Squad tab, both need). livePoints is
+      never a projection - it's 0 for anyone who hasn't played yet,
+      exactly matching what FPL's own live scoring shows - so summing
+      THAT is the correct, real, live-as-it-happens total.
+    */
+    liveTotal += player.livePoints * player.multiplier;
 
     if (player.multiplier > 0) {
       anyStarterStarted = anyStarterStarted || player.status !== 'upcoming';
@@ -446,14 +461,15 @@ export function buildManagerSquad(picksData, context) {
     FPL's own "points" field for a single Gameweek is the RAW score
     BEFORE any transfer-cost hit - the hit only ever shows up baked
     into the season-long running total (entry_history.total_points),
-    never in the per-GW figure itself. Both actualPoints (FPL's own
-    official figure) and predictedTotal (this module's own live
-    estimate) net it out here, once, so nothing downstream can
-    accidentally show a manager's points before their hit is
-    applied.
+    never in the per-GW figure itself. actualPoints (FPL's own
+    official figure), predictedTotal (this module's own forward-
+    looking blend), and liveTotal (this module's own real-points-so-
+    far figure) all net it out here, once, so nothing downstream can
+    accidentally show a manager's points before their hit is applied.
   */
   const transferCost = picksData.entry_history?.event_transfers_cost ?? 0;
   const netPredictedTotal = predictedTotal - transferCost;
+  const netLiveTotal = liveTotal - transferCost;
 
   return {
     activeChip: picksData.active_chip || null,
@@ -464,7 +480,16 @@ export function buildManagerSquad(picksData, context) {
         : null,
     transfers: picksData.entry_history?.event_transfers ?? 0,
     transferCost,
+    // predictedTotal: forward-looking blend (real points once a
+    // player's match has started, FPL's own ep_this projection until
+    // then) - what the Predict tab and squad-comparison view want.
     predictedTotal: Math.round(netPredictedTotal * 10) / 10,
+    // liveTotal: real points ONLY - 0 for anyone who hasn't played
+    // yet, never a projection - what the GW Standings table (and the
+    // total at the top of a manager's own Squad tab) want: "how many
+    // points has this manager actually scored so far", as fast as
+    // event/{gw}/live/ itself updates.
+    liveTotal: Math.round(netLiveTotal * 10) / 10,
     liveStatus:
       !anyStarterStarted
         ? 'upcoming'
